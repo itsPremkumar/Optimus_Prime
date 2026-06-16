@@ -1,7 +1,9 @@
-TARGET_MODULE = "truck"
+# These values are overridden by run_simulation.py when sent via MCP
+# Keep defaults here for standalone execution or if override fails
+TARGET_MODULE = "ALL"
 EXPORT_STL = False
 EXPORT_URDF = False
-CAPTURE_SCREENSHOTS = True
+CAPTURE_SCREENSHOTS = False
 
 import adsk.core
 import adsk.fusion
@@ -19,12 +21,12 @@ try:
 except NameError:
     SCRIPT_DIR = os.getcwd()
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-OUTPUT_DIR = os.path.join(PROJECT_DIR, "output")
-LOG_DIR = os.path.join(OUTPUT_DIR, "logs")
-SCREENSHOT_DIR = os.path.join(OUTPUT_DIR, "screenshots")
-EXPORT_DIR = os.path.join(OUTPUT_DIR, "exports")
+_OUTPUT_DIR = os.path.join(PROJECT_DIR, "output")
+LOG_DIR = globals().get("LOG_DIR") or os.path.join(_OUTPUT_DIR, "logs")
+SCREENSHOT_DIR = globals().get("SCREENSHOT_DIR") or os.path.join(_OUTPUT_DIR, "screenshots")
+EXPORT_DIR = globals().get("EXPORT_DIR") or os.path.join(_OUTPUT_DIR, "exports")
 LOG_FILE = os.path.join(LOG_DIR, f"optimus_fusion_log_{_ts}.txt")
-STOP_FLAG = os.path.join(OUTPUT_DIR, "stop.flag")
+STOP_FLAG = os.path.join(_OUTPUT_DIR, "stop.flag")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -93,7 +95,9 @@ class Logger:
     @classmethod
     def log(cls, msg, level="INFO"):
         ts = datetime.datetime.now().strftime("%H:%M:%S")
-        cls._buffer.append(f"[{ts}] [{level}] {msg}\n")
+        # Strip non-ASCII to avoid log file encoding issues
+        safe_msg = msg.encode("ascii", "replace").decode("ascii")
+        cls._buffer.append(f"[{ts}] [{level}] {safe_msg}\n")
         cls._count += 1
         if cls._count >= 20:
             cls.flush()
@@ -964,7 +968,7 @@ def run(context):
                         Logger.log(f"  {label}: {count} collision(s)")
                         for i in range(min(count, 5)):
                             r = results.item(i)
-                            Logger.log(f"    [{r.entityOne.name} ↔ [{r.entityTwo.name}] "
+                            Logger.log(f"    [{r.entityOne.name}] ↔ [{r.entityTwo.name}] "
                                        f"| Vol:{r.volume:.3f} cm³ | "
                                        f"XYZ:({r.intersectionCenter.x:.2f},{r.intersectionCenter.y:.2f},{r.intersectionCenter.z:.2f}) cm")
                         if count > 5:
@@ -1464,8 +1468,16 @@ def run(context):
         try:
             os.makedirs(EXPORT_DIR, exist_ok=True)
             save_path = os.path.join(EXPORT_DIR, "Optimus_Prime_G1_v8.f3d")
-            doc.saveAs(save_path, "Optimus Prime G1 v8", "v8.0")
-            Logger.log(f"Document saved to {save_path} for physics indexing.")
+            try:
+                doc.saveAs("Optimus Prime G1 v8", save_path)
+                Logger.log(f"Document saved to {save_path} for physics indexing.")
+            except Exception:
+                try:
+                    doc.saveAs(save_path, "Optimus Prime G1 v8", "v8.0")
+                    Logger.log(f"Document saved (v3 args).")
+                except Exception:
+                    doc.saveAs(save_path, "Optimus Prime G1 v8")
+                    Logger.log(f"Document saved (path, name).")
         except Exception as e:
             Logger.log(f"Could not save document: {e}", "WARN")
 

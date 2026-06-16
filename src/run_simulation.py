@@ -130,10 +130,14 @@ if __name__ == "__main__":
         print(f"Payload file not found: {PAYLOAD_FILE}")
         sys.exit(1)
 
+    output_dir = os.path.join(os.path.dirname(BASE_DIR), "output")
     print(f"Loading Optimus Prime payload (> 50KB)... [Target: {args.module}]")
     with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
         script_content = f"TARGET_MODULE = '{args.module}'\n"
         script_content += f"CAPTURE_SCREENSHOTS = {str(args.capture)}\n"
+        script_content += f"EXPORT_DIR = r'{output_dir}\\exports'\n"
+        script_content += f"LOG_DIR = r'{output_dir}\\logs'\n"
+        script_content += f"SCREENSHOT_DIR = r'{output_dir}\\screenshots'\n"
         script_content += f.read()
 
     print("Initializing connection to Fusion 360 MCP...")

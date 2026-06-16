@@ -10,11 +10,17 @@ def send_request(payload):
     if session_id:
         headers['MCP-Session-Id'] = session_id
     req = urllib.request.Request(URL, data=json.dumps(payload).encode('utf-8'), headers=headers)
-    with urllib.request.urlopen(req) as response:
-        resp_text = response.read().decode('utf-8')
-        if resp_text:
-            return json.loads(resp_text)
-        return {}
+    try:
+        with urllib.request.urlopen(req) as response:
+            if 'MCP-Session-Id' in response.headers:
+                session_id = response.headers.get('MCP-Session-Id')
+            resp_text = response.read().decode('utf-8')
+            if resp_text:
+                return json.loads(resp_text)
+            return {}
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 
 send_request({
     "jsonrpc": "2.0", "id": 1, "method": "initialize",
