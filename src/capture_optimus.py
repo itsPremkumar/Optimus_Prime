@@ -66,8 +66,6 @@ def run(context):
         camera.viewOrientation = orientation
         camera.isFitView = True
         viewport.camera = camera
-        adsk.doEvents()
-        time.sleep(1.0)
         
         path = os.path.join(out_dir, f"optimus_{{name}}.png")
         viewport.saveAsImageFile(path, 1920, 1080)
