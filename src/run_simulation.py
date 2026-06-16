@@ -38,10 +38,12 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optimus Prime G1 Simulation Controller")
     parser.add_argument("--module", type=str, default="ALL", 
-                        choices=["ALL", "rom", "head", "wave", "breathing", "walk", "run", "combat", "transform", "stability", "servo"],
+                        choices=["ALL", "rom", "head", "wave", "breathing", "walk", "run", "combat", "transform", "truck", "stability", "servo"],
                         help="Select a specific simulation module to run in isolation.")
     parser.add_argument("--stop", action="store_true", 
                         help="Dynamically stop a running simulation.")
+    parser.add_argument("--capture", action="store_true",
+                        help="Enable screenshot capture after simulation.")
     args = parser.parse_args()
 
     if args.stop:
@@ -56,7 +58,12 @@ if __name__ == "__main__":
 
     print(f"Loading Optimus Prime payload (> 50KB)... [Target: {args.module}]")
     with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
-        script_content = f"TARGET_MODULE = '{args.module}'\n" + f.read()
+        script_content = f"TARGET_MODULE = '{args.module}'\n"
+        if args.capture:
+            script_content += "CAPTURE_SCREENSHOTS = True\n"
+        else:
+            script_content += "CAPTURE_SCREENSHOTS = False\n"
+        script_content += f.read()
 
     print("Initializing connection to Fusion 360 MCP...")
     init_payload = {

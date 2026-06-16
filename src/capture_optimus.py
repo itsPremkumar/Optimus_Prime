@@ -2,6 +2,7 @@ import urllib.request
 import json
 import os
 import sys
+import time
 
 URL = "http://127.0.0.1:27182/mcp"
 session_id = None
@@ -43,7 +44,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     script_content = f"""
-import adsk.core, adsk.fusion, traceback, time, os
+import adsk.core, adsk.fusion, traceback, time, os, sys
 
 def run(context):
     app = adsk.core.Application.get()
@@ -66,6 +67,7 @@ def run(context):
         camera.viewOrientation = orientation
         camera.isFitView = True
         viewport.camera = camera
+        time.sleep(0.5)
         
         path = os.path.join(out_dir, f"optimus_{{name}}.png")
         viewport.saveAsImageFile(path, 1920, 1080)

@@ -20,6 +20,8 @@ TARGET_MODULE = "truck"
 EXPORT_STL = False
 EXPORT_URDF = False
 EXPORT_DIR = r"C:\OptimusPrime_STL"
+SCREENSHOT_DIR = r"C:\one\Automated_3D_Modeling\12_Optimus_Prime_Simulation\images"
+CAPTURE_SCREENSHOTS = True
 
 import adsk.core
 import adsk.fusion
@@ -27,6 +29,7 @@ import traceback
 import math
 import os
 import datetime
+import time
 
 _ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 LOG_FILE = rf"C:\opt_fusion_log_{_ts}.txt"
@@ -61,15 +64,19 @@ SERVO_SPECS = {
 }
 
 # ROM limits used by both test_joint_rom() and transformation validation
+# Axis mapping is joint-specific (depends on joint geometry):
+#   Waist/Neck: pitch = forward lean/tilt, yaw = twist
+#   Hip/Ankle:  yaw = forward fold/tuck, pitch = twist
+#   Shoulder:   yaw = side-swing, pitch = tilt, roll = twist
 JOINT_LIMITS = {
-    "Waist_Cluster":      {"pitch": (-45, 45),   "yaw": (-90, 90),    "roll": (-15, 15)},
-    "Neck_Cluster":       {"pitch": (-30, 45),   "yaw": (-60, 60),    "roll": (-20, 20)},
-    "L_Hip_Cluster":      {"pitch": (-90, 30),   "yaw": (-30, 30),    "roll": (-30, 30)},
-    "R_Hip_Cluster":      {"pitch": (-90, 30),   "yaw": (-30, 30),    "roll": (-30, 30)},
+    "Waist_Cluster":      {"pitch": (-45, 60),   "yaw": (-15, 15),    "roll": (-15, 15)},
+    "Neck_Cluster":       {"pitch": (-60, 45),   "yaw": (-20, 20),    "roll": (-20, 20)},
+    "L_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-90, 30),    "roll": (-30, 30)},
+    "R_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-90, 30),    "roll": (-30, 30)},
     "L_Knee":             {"pitch": (0, 135)},
     "R_Knee":             {"pitch": (0, 135)},
-    "L_Ankle_Cluster":    {"pitch": (-30, 45),   "roll": (-20, 20)},
-    "R_Ankle_Cluster":    {"pitch": (-30, 45),   "roll": (-20, 20)},
+    "L_Ankle_Cluster":    {"pitch": (-20, 20),   "yaw": (-30, 45),    "roll": (-20, 20)},
+    "R_Ankle_Cluster":    {"pitch": (-20, 20),   "yaw": (-30, 45),    "roll": (-20, 20)},
     "L_Shoulder_Cluster": {"pitch": (-175, 60),  "yaw": (-90, 90),    "roll": (-90, 90)},
     "R_Shoulder_Cluster": {"pitch": (-175, 60),  "yaw": (-90, 90),    "roll": (-90, 90)},
     "L_Elbow":            {"pitch": (0, 150)},
@@ -826,8 +833,8 @@ def run(context):
                         return mo.rotationValue
                     if mo.objectType == adsk.fusion.BallJointMotion.classType():
                         return getattr(mo, axis + "Value")
-                except Exception:
-                    pass
+                except Exception as e:
+                    Logger.log(f"_get({axis}) failed: {e}", "ERROR")
                 return 0.0
 
             def _set(self, mo, axis, val):
@@ -836,8 +843,8 @@ def run(context):
                         mo.rotationValue = val
                     elif mo.objectType == adsk.fusion.BallJointMotion.classType():
                         setattr(mo, axis + "Value", val)
-                except Exception:
-                    pass
+                except Exception as e:
+                    Logger.log(f"_set({axis},{val:.2f}) failed: {e}", "ERROR")
 
             def _refresh(self):
                 if os.path.exists(r"C:\opt_fusion_stop.flag"):
@@ -848,6 +855,10 @@ def run(context):
                     raise Exception("SIMULATION_ABORTED_BY_USER")
                 try:
                     self._app.activeViewport.refresh()
+                except Exception:
+                    pass
+                try:
+                    adsk.doEvents()
                 except Exception:
                     pass
 
@@ -880,38 +891,43 @@ def run(context):
                     self._refresh()
 
             def move_group(self, targets, steps=20, axis='pitch', ease=True, clamp=True):
+                active = []
+                for item in targets:
+                    name = item[0]
+                    deg = item[1]
+                    ax = item[2] if len(item) > 2 else axis
+                    j = self._gj(name)
+                    if not j:
+                        continue
+                    d = self._clamp(name, ax, deg) if clamp else deg
+                    mo = j.jointMotion
+                    active.append((mo, ax, self._get(mo, ax), math.radians(d)))
+
                 for i in range(1, steps + 1):
                     t = i / steps
                     if ease:
                         t = self._ease(t)
-                    for name, deg in targets:
-                        j = self._gj(name)
-                        if not j:
-                            continue
-                        d = deg
-                        if clamp:
-                            d = self._clamp(name, axis, d)
-                        mo = j.jointMotion
-                        e_rad = math.radians(d)
-                        s_rad = self._get(mo, axis)
-                        self._set(mo, axis, s_rad + (e_rad - s_rad) * t)
+                    for mo, ax, s_rad, e_rad in active:
+                        self._set(mo, ax, s_rad + (e_rad - s_rad) * t)
                     self._refresh()
 
             def move_ball(self, targets, steps=20, clamp=True):
+                active = []
+                for name, pitch, yaw, roll in targets:
+                    j = self._gj(name)
+                    if not j:
+                        continue
+                    mo = j.jointMotion
+                    for axis, val in [("pitch", pitch), ("yaw", yaw), ("roll", roll)]:
+                        if val is None:
+                            continue
+                        v = self._clamp(name, axis, val) if clamp else val
+                        active.append((mo, axis, self._get(mo, axis), math.radians(v)))
+
                 for i in range(1, steps + 1):
                     t = self._ease(i / steps)
-                    for name, pitch, yaw, roll in targets:
-                        j = self._gj(name)
-                        if not j:
-                            continue
-                        mo = j.jointMotion
-                        for axis, val in [("pitch", pitch), ("yaw", yaw), ("roll", roll)]:
-                            if val is None:
-                                continue
-                            v = self._clamp(name, axis, val) if clamp else val
-                            e_rad = math.radians(v)
-                            s_rad = self._get(mo, axis)
-                            self._set(mo, axis, s_rad + (e_rad - s_rad) * t)
+                    for mo, axis, s_rad, e_rad in active:
+                        self._set(mo, axis, s_rad + (e_rad - s_rad) * t)
                     self._refresh()
 
             def reset_all(self, steps=10, groups=None):
@@ -1070,49 +1086,52 @@ def run(context):
 
             # ─── Module 8: Transformation ─────────────────────────────────
             # v8: ALL angles validated to be within JOINT_LIMITS
+            # v9: Ball joint axis fix — yaw=flexion/lean, pitch=twist
             def simulate_transformation(self):
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 8a / 9 ---")
                 Logger.log("MODULE 8a: TRANSFORMATION (Robot→Truck)")
 
-                # Stage 1: Stow wrists (v8: within ±45° limit)
+                # Stage 1: Stow wrists
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
 
-                # Stage 2: Fold elbows up (within 0-150° limit)
+                # Stage 2: Fold elbows up
                 self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
                 self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
 
-                # Stage 3: Shoulder sweep (within limits)
+                # Stage 3: Shoulder sweep inward
                 self.move_ball([
                     ("L_Shoulder_Cluster", -88, -62, -28),
-                    ("R_Shoulder_Cluster", -88, 62, 28),
+                    ("R_Shoulder_Cluster", 88, 62, -28),
                 ], steps=22)
 
-                # Stage 4: Head retract (v8: within -30° limit)
-                self.move_joint("Neck_Cluster", -30, steps=15, axis='pitch', clamp=True)
+                # Stage 4: Head tuck (pitch = forward tilt for neck)
+                self.move_ball([("Neck_Cluster", -50, 0, 0)], steps=15)
 
-                # Stage 5: Waist forward (v8: within ±45° limit)
-                self.move_joint("Waist_Cluster", 45, steps=22, axis='pitch', clamp=True)
+                # Stage 5: Waist forward lean (pitch = forward lean for waist)
+                self.move_ball([("Waist_Cluster", 60, 0, 0)], steps=22)
 
-                # Stage 6: Hip flexion (within -90° limit)
+                # Stage 6: Hip flexion (yaw=forward fold)
+                #   shin_angle = hip + (180 - knee).  For horizontal shin (wheels on ground):
+                #   90 = 45 + (180-135)  =>  hip=-45, knee=135
                 self.move_ball([
-                    ("L_Hip_Cluster", -88, -5, 0),
-                    ("R_Hip_Cluster", -88, 5, 0),
+                    ("L_Hip_Cluster", -5, -45, 0),
+                    ("R_Hip_Cluster", 5, -45, 0),
                 ], steps=22)
 
-                # Stage 7: Knees fold (v8: within 135° limit)
+                # Stage 7: Knees fold
                 self.move_joint("L_Knee", 135, steps=20, axis='pitch', clamp=True)
                 self.move_joint("R_Knee", 135, steps=20, axis='pitch', clamp=True)
 
-                # Stage 8: Ankles tuck (v8: within 45° limit)
-                self.move_joint("L_Ankle_Cluster", 45, steps=18, axis='pitch', clamp=True)
-                self.move_joint("R_Ankle_Cluster", 45, steps=18, axis='pitch', clamp=True)
+                # Stage 8: Ankles tuck (yaw=foot tuck; pitch tilts foot flat on ground)
+                self.move_ball([("L_Ankle_Cluster", 10, 45, 0)], steps=18)
+                self.move_ball([("R_Ankle_Cluster", 10, 45, 0)], steps=18)
 
-                # Stage 9: Arm lock
+                # Stage 9: Arm lock flat against body
                 self.move_ball([
-                    ("L_Shoulder_Cluster", 0, -90, 0),
-                    ("R_Shoulder_Cluster", 0, 90, 0),
+                    ("L_Shoulder_Cluster", -90, -90, 0),
+                    ("R_Shoulder_Cluster", 90, 90, 0),
                 ], steps=15)
 
                 self._interfere("Truck-mode check")
@@ -1122,28 +1141,28 @@ def run(context):
                 for _ in range(3):
                     self.move_joint("L_Ankle_Cluster", 8, steps=8, axis='roll')
                     self.move_joint("R_Ankle_Cluster", -8, steps=8, axis='roll')
-                    self.move_joint("Waist_Cluster", 4, steps=6, axis='roll')
+                    self.move_ball([("Waist_Cluster", 0, 0, 4)], steps=6)
                     self.move_joint("L_Ankle_Cluster", -8, steps=8, axis='roll')
                     self.move_joint("R_Ankle_Cluster", 8, steps=8, axis='roll')
-                    self.move_joint("Waist_Cluster", -4, steps=6, axis='roll')
+                    self.move_ball([("Waist_Cluster", 0, 0, -4)], steps=6)
                 Logger.log("Truck driving done.")
 
                 # Reverse transformation (Truck→Robot) - exact undo of all 9 stages
                 Logger.log("MODULE 8c: TRUCK → ROBOT")
                 self.move_ball([
                     ("L_Shoulder_Cluster", -88, -62, -28),
-                    ("R_Shoulder_Cluster", -88, 62, 28),
+                    ("R_Shoulder_Cluster", 88, 62, -28),
                 ], steps=15)
-                self.move_joint("L_Ankle_Cluster", 0, steps=18, axis='pitch')
-                self.move_joint("R_Ankle_Cluster", 0, steps=18, axis='pitch')
+                self.move_ball([("L_Ankle_Cluster", 0, 0, 0)], steps=18)
+                self.move_ball([("R_Ankle_Cluster", 0, 0, 0)], steps=18)
                 self.move_joint("L_Knee", 0, steps=20, axis='pitch')
                 self.move_joint("R_Knee", 0, steps=20, axis='pitch')
                 self.move_ball([
                     ("L_Hip_Cluster", 0, 0, 0),
                     ("R_Hip_Cluster", 0, 0, 0),
                 ], steps=22)
-                self.move_joint("Waist_Cluster", 0, steps=22, axis='pitch')
-                self.move_joint("Neck_Cluster", 0, steps=15, axis='pitch')
+                self.move_ball([("Waist_Cluster", 0, 0, 0)], steps=22)
+                self.move_ball([("Neck_Cluster", 0, 0, 0)], steps=15)
                 self.move_ball([
                     ("L_Shoulder_Cluster", 0, 0, 0),
                     ("R_Shoulder_Cluster", 0, 0, 0),
@@ -1156,35 +1175,77 @@ def run(context):
                 self.reset_all(steps=10)
 
             # ─── Truck Mode (forward transform only, hold position) ────────
+            def debug_joints(self, label):
+                """Dump all joint names, types, and current values."""
+                Logger.log(f"=== JOINT STATE [{label}] ===")
+                for i in range(self._root.asBuiltJoints.count):
+                    j = self._root.asBuiltJoints.item(i)
+                    mo = j.jointMotion
+                    otype = mo.objectType
+                    if otype == adsk.fusion.RevoluteJointMotion.classType():
+                        deg = math.degrees(mo.rotationValue)
+                        Logger.log(f"  {j.name:30s} REV  pitch={deg:+.1f}°")
+                    elif otype == adsk.fusion.BallJointMotion.classType():
+                        try:
+                            p = math.degrees(mo.pitchValue)
+                            y = math.degrees(mo.yawValue)
+                            r = math.degrees(mo.rollValue)
+                            Logger.log(f"  {j.name:30s} BALL pitch={p:+.1f}° yaw={y:+.1f}° roll={r:+.1f}°")
+                        except Exception as e:
+                            Logger.log(f"  {j.name:30s} BALL (readback failed: {e})", "WARN")
+                    else:
+                        Logger.log(f"  {j.name:30s} {otype} (unexpected type)", "WARN")
+
             def simulate_truck_mode(self):
                 self.reset_all(steps=10)
                 Logger.log("--- TRUCK MODE ---")
                 Logger.log("TRANSFORMATION (Robot→Truck) — holding position")
+                self.debug_joints("BEFORE_TRANSFORM")
 
+                # Stage 1: Stow wrists
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                # Stage 2: Fold elbows up
                 self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
                 self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                # Stage 3: Shoulder sweep inward
                 self.move_ball([
                     ("L_Shoulder_Cluster", -88, -62, -28),
-                    ("R_Shoulder_Cluster", -88, 62, 28),
+                    ("R_Shoulder_Cluster", 88, 62, -28),
                 ], steps=22)
-                self.move_joint("Neck_Cluster", -30, steps=15, axis='pitch', clamp=True)
-                self.move_joint("Waist_Cluster", 45, steps=22, axis='pitch', clamp=True)
+                # Stage 4: Head tuck (pitch = forward tilt for neck)
+                self.move_ball([("Neck_Cluster", -50, 0, 0)], steps=15)
+                # Stage 5: Waist forward lean (pitch = forward lean for waist)
+                self.move_ball([("Waist_Cluster", 60, 0, 0)], steps=22)
+                # Stage 6: Hip flexion (yaw = forward fold)
+                #   shin_angle = hip + (180 - knee).  For horizontal shin (wheels on ground):
+                #   90 = 45 + (180-135)  =>  hip=-45, knee=135
                 self.move_ball([
-                    ("L_Hip_Cluster", -88, -5, 0),
-                    ("R_Hip_Cluster", -88, 5, 0),
+                    ("L_Hip_Cluster", -5, -45, 0),
+                    ("R_Hip_Cluster", 5, -45, 0),
                 ], steps=22)
+                # Stage 7: Knees fold
                 self.move_joint("L_Knee", 135, steps=20, axis='pitch', clamp=True)
                 self.move_joint("R_Knee", 135, steps=20, axis='pitch', clamp=True)
-                self.move_joint("L_Ankle_Cluster", 45, steps=18, axis='pitch', clamp=True)
-                self.move_joint("R_Ankle_Cluster", 45, steps=18, axis='pitch', clamp=True)
+                # Stage 8: Ankles tuck (yaw = foot tuck; roll tilts foot flat)
+                self.move_ball([("L_Ankle_Cluster", 10, 45, 0)], steps=18)
+                self.move_ball([("R_Ankle_Cluster", 10, 45, 0)], steps=18)
+                # Stage 9: Arm lock flat against body
                 self.move_ball([
-                    ("L_Shoulder_Cluster", 0, -90, 0),
-                    ("R_Shoulder_Cluster", 0, 90, 0),
+                    ("L_Shoulder_Cluster", -90, -90, 0),
+                    ("R_Shoulder_Cluster", 90, 90, 0),
                 ], steps=15)
                 self._interfere("Truck-mode check")
+                self.debug_joints("AFTER_TRANSFORM")
                 Logger.log("TRUCK MODE — holding position. No reverse transform.")
+                try:
+                    cam = self._app.activeViewport.camera
+                    cam.isFitView = True
+                    self._app.activeViewport.camera = cam
+                    self._app.activeViewport.refresh()
+                except Exception:
+                    pass
+                self.capture_screenshots("optimus_truck")
 
             # ─── Module 9: Stability + Loads ──────────────────────────────
             def run_stability_analysis(self):
@@ -1195,11 +1256,11 @@ def run(context):
                     "Combat":    {"Waist_Cluster": (10, 0, 0),
                                   "L_Knee": 45, "R_Knee": 45,
                                   "L_Elbow": 90, "R_Elbow": 90,
-                                  "R_Shoulder_Cluster": (-45, 30, 0)},
+                                  "R_Shoulder_Cluster": (0, 30, -45)},
                     "Squat":     {"Waist_Cluster": (20, 0, 0),
                                   "L_Knee": 90, "R_Knee": 90,
-                                  "L_Hip_Cluster": (-45, 0, 0), "R_Hip_Cluster": (-45, 0, 0)},
-                    "Victory":   {"L_Shoulder_Cluster": (-90, 60, 0), "R_Shoulder_Cluster": (-90, 60, 0),
+                                  "L_Hip_Cluster": (0, -45, 0), "R_Hip_Cluster": (0, -45, 0)},
+                    "Victory":   {"L_Shoulder_Cluster": (0, 60, -90), "R_Shoulder_Cluster": (0, 60, -90),
                                   "L_Elbow": 30, "R_Elbow": 30,
                                   "Waist_Cluster": (15, 0, 0)},
                 }
@@ -1296,6 +1357,33 @@ def run(context):
                 except Exception:
                     Logger.log(f"STL export failed: {traceback.format_exc()}", "ERROR")
 
+            # ─── Screenshot Capture ────────────────────────────────────────
+            def capture_screenshots(self, prefix="optimus"):
+                if not CAPTURE_SCREENSHOTS:
+                    return
+                try:
+                    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+                    viewport = self._app.activeViewport
+                    camera = viewport.camera
+                    views = [
+                        ("Front", adsk.core.ViewOrientations.FrontViewOrientation),
+                        ("Back", adsk.core.ViewOrientations.BackViewOrientation),
+                        ("Left", adsk.core.ViewOrientations.LeftViewOrientation),
+                        ("Right", adsk.core.ViewOrientations.RightViewOrientation),
+                        ("Top", adsk.core.ViewOrientations.TopViewOrientation),
+                        ("Iso", adsk.core.ViewOrientations.IsoTopRightViewOrientation),
+                    ]
+                    for name, orientation in views:
+                        camera.viewOrientation = orientation
+                        camera.isFitView = True
+                        viewport.camera = camera
+                        time.sleep(0.5)
+                        path = os.path.join(SCREENSHOT_DIR, f"{prefix}_{name}.png")
+                        viewport.saveAsImageFile(path, 1920, 1080)
+                        Logger.log(f"Screenshot: {path}")
+                except Exception:
+                    Logger.log(f"Screenshot capture failed: {traceback.format_exc()}", "WARN")
+
             # ─── Master Runner ────────────────────────────────────────────
             def run_all_simulations(self):
                 dispatch = {
@@ -1350,7 +1438,7 @@ def run(context):
         try:
             os.makedirs(EXPORT_DIR, exist_ok=True)
             save_path = os.path.join(EXPORT_DIR, "Optimus_Prime_G1_v8.f3d")
-            doc.saveAs(save_path, "Optimus_Prime_G1_v8")
+            doc.saveAs(save_path, "Optimus Prime G1 v8", "v8.0")
             Logger.log(f"Document saved to {save_path} for physics indexing.")
         except Exception as e:
             Logger.log(f"Could not save document: {e}", "WARN")
