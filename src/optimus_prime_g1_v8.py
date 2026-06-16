@@ -18,6 +18,7 @@
 
 TARGET_MODULE = "ALL"
 EXPORT_STL = False
+EXPORT_URDF = False
 EXPORT_DIR = r"C:\OptimusPrime_STL"
 
 import adsk.core
@@ -36,8 +37,6 @@ LOG_FILE = rf"C:\opt_fusion_log_{_ts}.txt"
 # ═════════════════════════════════════════════════════════════════════════════
 
 CLEARANCE   = 0.060  # 0.60 mm (v7 used 0.45 mm) - better FDM tolerance
-_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-LOG_FILE    = rf"C:\opt_fusion_log_{_ts}.txt"
 ANKLE_CTR   = 3.8
 SHIN_CTR    = 9.3
 KNEE_CTR    = 14.8
@@ -113,7 +112,7 @@ class Logger:
 
 
 def run(context):
-    global TARGET_MODULE, EXPORT_STL, EXPORT_DIR
+    global TARGET_MODULE, EXPORT_STL, EXPORT_URDF, EXPORT_DIR
 
     app = None
     ui = None
@@ -203,7 +202,6 @@ def run(context):
                     pass
 
         def box(comp, name, cx, cy, cz, lx, ly, lz, ap=None):
-            adsk.doEvents()
             temp = adsk.fusion.TemporaryBRepManager.get()
             obb = adsk.core.OrientedBoundingBox3D.create(
                 adsk.core.Point3D.create(cx, cy, cz),
@@ -899,7 +897,7 @@ def run(context):
                         self._set(mo, axis, s_rad + (e_rad - s_rad) * t)
                     self._refresh()
 
-            def move_ball(self, targets, steps=20):
+            def move_ball(self, targets, steps=20, clamp=True):
                 for i in range(1, steps + 1):
                     t = self._ease(i / steps)
                     for name, pitch, yaw, roll in targets:
@@ -910,7 +908,7 @@ def run(context):
                         for axis, val in [("pitch", pitch), ("yaw", yaw), ("roll", roll)]:
                             if val is None:
                                 continue
-                            v = self._clamp(name, axis, val) if axis in ("pitch", "yaw", "roll") else val
+                            v = self._clamp(name, axis, val) if clamp else val
                             e_rad = math.radians(v)
                             s_rad = self._get(mo, axis)
                             self._set(mo, axis, s_rad + (e_rad - s_rad) * t)
@@ -919,20 +917,14 @@ def run(context):
             def reset_all(self, steps=10, groups=None):
                 if groups is None:
                     groups = list(self.BALL_JOINTS) + list(self.REV_JOINTS)
-                targets = [(n, 0.0) for n in groups if self._gj(n)]
-                for g in targets:
-                    self.move_joint(g[0], 0.0, steps, 'pitch', ease=True)
-                for name in self.BALL_JOINTS:
-                    for axis in ('yaw', 'roll'):
-                        j = self._gj(name)
-                        if j:
-                            try:
-                                mo = j.jointMotion
-                                self._set(mo, axis, 0.0)
-                            except Exception:
-                                pass
+                ball_targets = [(n, 0.0, 0.0, 0.0) for n in self.BALL_JOINTS if self._gj(n)]
+                rev_targets  = [(n, 0.0) for n in self.REV_JOINTS if self._gj(n)]
+                if ball_targets:
+                    self.move_ball(ball_targets, steps=steps)
+                for name, _ in rev_targets:
+                    self.move_joint(name, 0.0, steps, 'pitch', ease=True)
                 self._refresh()
-                Logger.log(f"→ reset to neutral")
+                Logger.log("→ reset to neutral")
 
             def _interfere(self, label="Interference", vol_min=0.015):
                 try:
@@ -942,17 +934,21 @@ def run(context):
                         self._cols.append((label, -1))
                         return
                     results = None
-                    try:
-                        results = self._app.measureManager.measureInterference(prod)
-                    except Exception:
+                    for method in [
+                        lambda: self._app.measureManager.measureInterference(prod),
+                        lambda: self._design.measureInterference(prod),
+                        lambda: adsk.fusion.Design.cast(prod).measureInterference(prod),
+                    ]:
                         try:
-                            results = self._design.measureInterference(prod)
+                            results = method()
+                            if results is not None:
+                                break
                         except Exception:
-                            results = adsk.fusion.Design.cast(prod).measureInterference(prod)
+                            continue
                     if results is None:
                         raise Exception("all API approaches failed")
-                    if results:
-                        count = results.count
+                    count = results.count
+                    if count:
                         Logger.log(f"  {label}: {count} collision(s)")
                         for i in range(min(count, 5)):
                             r = results.item(i)
@@ -961,10 +957,9 @@ def run(context):
                                        f"XYZ:({r.intersectionCenter.x:.2f},{r.intersectionCenter.y:.2f},{r.intersectionCenter.z:.2f}) cm")
                         if count > 5:
                             Logger.log(f"    …{count-5} more — see log")
-                        self._cols.append((label, count))
                     else:
                         Logger.log(f"  {label}: ✅ 0 collisions")
-                        self._cols.append((label, 0))
+                    self._cols.append((label, count))
                 except Exception as e:
                     Logger.log(f"  {label}: ⚠ check skipped ({e})", "WARN")
                     self._cols.append((label, -1))
@@ -1165,43 +1160,43 @@ def run(context):
                 Logger.log("--- MODULE 9 / 9 ---")
                 Logger.log("MODULE 9a: STABILITY ANALYSIS")
                 poses = {
-                    "Attention": {"Waist_Cluster": (0, 0, 0), "Knee": 0, "Elbow": 0},
-                    "Combat": {"Waist_Cluster": (10, 0, 0), "Knee": 45, "Elbow": 90,
-                               "R_Shoulder_Cluster": (-45, 30, 0)},
-                    "Squat": {"Waist_Cluster": (20, 0, 0), "Knee": 90, "Hip_Cluster": (-45, 0, 0)},
-                    "Victory": {"Shoulder_Cluster": (-90, 60, 0), "Elbow": 30, "Waist_Cluster": (15, 0, 0)},
+                    "Attention": {"Waist_Cluster": (0, 0, 0)},
+                    "Combat":    {"Waist_Cluster": (10, 0, 0),
+                                  "L_Knee": 45, "R_Knee": 45,
+                                  "L_Elbow": 90, "R_Elbow": 90,
+                                  "R_Shoulder_Cluster": (-45, 30, 0)},
+                    "Squat":     {"Waist_Cluster": (20, 0, 0),
+                                  "L_Knee": 90, "R_Knee": 90,
+                                  "L_Hip_Cluster": (-45, 0, 0), "R_Hip_Cluster": (-45, 0, 0)},
+                    "Victory":   {"L_Shoulder_Cluster": (-90, 60, 0), "R_Shoulder_Cluster": (-90, 60, 0),
+                                  "L_Elbow": 30, "R_Elbow": 30,
+                                  "Waist_Cluster": (15, 0, 0)},
                 }
                 for pose_name, config in poses.items():
                     self.reset_all(steps=10)
                     for key, val in config.items():
                         if isinstance(val, tuple):
-                            if "Cluster" in key:
-                                if key.startswith(("L_", "R_")):
-                                    self.move_ball([(key, val[0], val[1], val[2])], steps=15)
-                                elif "Hip" in key or "Shoulder" in key:
-                                    self.move_ball([(f"L_{key}", val[0], val[1], val[2])], steps=15)
-                                    self.move_ball([(f"R_{key}", val[0], val[1], val[2])], steps=15)
-                                else:
-                                    self.move_ball([(key, val[0], val[1], val[2])], steps=15)
-                        elif "Knee" in key:
-                            self.move_joint(f"L_{key}", val, steps=12, axis='pitch')
-                            self.move_joint(f"R_{key}", val, steps=12, axis='pitch')
-                        elif "Elbow" in key:
-                            self.move_joint(f"L_{key}", val, steps=10, axis='pitch')
-                            self.move_joint(f"R_{key}", val, steps=10, axis='pitch')
-                    try:
+                            self.move_ball([(key, val[0], val[1], val[2])], steps=15)
+                        else:
+                            self.move_joint(key, val, steps=12, axis='pitch')
+                    com = None
+                    for method in [
+                        lambda: self._app.measureManager.measurePhysicalProperties(
+                            self._app.activeProduct),
+                        lambda: self._design.measurePhysicalProperties(
+                            self._app.activeProduct),
+                    ]:
                         try:
-                            props = self._app.measureManager.measurePhysicalProperties(
-                                self._app.activeProduct)
+                            com = method().centerOfMass
+                            break
                         except Exception:
-                            props = self._design.measurePhysicalProperties(
-                                self._app.activeProduct)
-                        com = props.centerOfMass
+                            continue
+                    if com:
                         stable = abs(com.x) < 3.0 and abs(com.y) < 5.0
                         stable_label = "✅ STABLE" if stable else "❌ UNSTABLE"
                         Logger.log(f"  {pose_name:<16} {stable_label}  "
                                    f"CoM=({com.x:.1f}, {com.y:.1f}, {com.z:.1f})")
-                    except Exception:
+                    else:
                         Logger.log(f"  {pose_name:<16} ⚠ CoM unavailable (unsaved doc)", "WARN")
 
             def estimate_servo_loads(self):
@@ -1236,8 +1231,8 @@ def run(context):
                         f.write('<?xml version="1.0" encoding="utf-8"?>\n')
                         f.write('<robot name="Optimus_Prime_G1">\n')
                         f.write(f'  <link name="world"/>\n')
-                        for i in range(root.asBuiltJoints.count):
-                            j = root.asBuiltJoints.item(i)
+                        for i in range(self._root.asBuiltJoints.count):
+                            j = self._root.asBuiltJoints.item(i)
                             n = j.name.replace(" ", "_")
                             f.write(f'  <joint name="{n}" type="fixed">\n')
                             o1 = j.occurrenceOne.component.name if j.occurrenceOne else "world"
@@ -1252,8 +1247,6 @@ def run(context):
 
             # ─── STL Export ───────────────────────────────────────────────
             def export_stl(self):
-                if not EXPORT_STL:
-                    return
                 try:
                     os.makedirs(EXPORT_DIR, exist_ok=True)
                     skip = {"Marker", "Pivot", "MtA", "MtB", "Axle_Pivot", "Horn", "_Vis", "Scope", "Antenna"}
@@ -1295,30 +1288,41 @@ def run(context):
                 target = TARGET_MODULE
                 Logger.log(f"--- BEGINNING SIMULATION [TARGET: {target}] ---")
                 if target in dispatch:
-                    result = dispatch[target]()
-                    if callable(result):
-                        result()
+                    dispatch[target]()
                 else:
                     Logger.log(f"Unknown module: {target}", "ERROR")
 
-                self.export_urdf()
-                self.export_stl()
+                if EXPORT_URDF:
+                    self.export_urdf()
+                if EXPORT_STL:
+                    self.export_stl()
 
                 # Final report
                 Logger.log("=" * 50)
                 Logger.log("OPTIMUS PRIME G1 — FINAL REPORT")
                 Logger.log("=" * 50)
                 for label, count in self._cols:
-                    icon = "✅" if count == 0 else "⚠" if count > 0 else "?"
-                    Logger.log(f"  {label:<40} {icon}  {count} collision(s)" if count >= 0
-                               else f"  {label:<40} ?  N/A")
-                Logger.log(f"URDF  : {EXPORT_DIR}\\robot.urdf")
+                    if count >= 0:
+                        icon = "✅" if count == 0 else "⚠"
+                        Logger.log(f"  {label:<40} {icon}  {count} collision(s)")
+                    else:
+                        Logger.log(f"  {label:<40} ?  N/A")
+                if EXPORT_URDF:
+                    Logger.log(f"URDF  : {EXPORT_DIR}\\robot.urdf")
                 Logger.log(f"Log   : {LOG_FILE}")
                 Logger.log("=" * 50)
 
         # ══════════════════════════════════════════════════════════════════
         # RUN SIMULATION
         # ══════════════════════════════════════════════════════════════════
+        try:
+            os.makedirs(EXPORT_DIR, exist_ok=True)
+            save_path = os.path.join(EXPORT_DIR, "Optimus_Prime_G1_v8.f3d")
+            doc.saveAs(save_path, "Optimus_Prime_G1_v8")
+            Logger.log(f"Document saved to {save_path} for physics indexing.")
+        except Exception as e:
+            Logger.log(f"Could not save document: {e}", "WARN")
+
         sim = SimulationEngine(root, comps_list, design, app, ui)
         sim.run_all_simulations()
         Logger.log("Script finished successfully.")
