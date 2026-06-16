@@ -16,7 +16,7 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
-TARGET_MODULE = "ALL"
+TARGET_MODULE = "truck"
 EXPORT_STL = False
 EXPORT_URDF = False
 EXPORT_DIR = r"C:\OptimusPrime_STL"
@@ -1155,6 +1155,37 @@ def run(context):
                 Logger.log("Robot mode restored.")
                 self.reset_all(steps=10)
 
+            # ─── Truck Mode (forward transform only, hold position) ────────
+            def simulate_truck_mode(self):
+                self.reset_all(steps=10)
+                Logger.log("--- TRUCK MODE ---")
+                Logger.log("TRANSFORMATION (Robot→Truck) — holding position")
+
+                self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                self.move_ball([
+                    ("L_Shoulder_Cluster", -88, -62, -28),
+                    ("R_Shoulder_Cluster", -88, 62, 28),
+                ], steps=22)
+                self.move_joint("Neck_Cluster", -30, steps=15, axis='pitch', clamp=True)
+                self.move_joint("Waist_Cluster", 45, steps=22, axis='pitch', clamp=True)
+                self.move_ball([
+                    ("L_Hip_Cluster", -88, -5, 0),
+                    ("R_Hip_Cluster", -88, 5, 0),
+                ], steps=22)
+                self.move_joint("L_Knee", 135, steps=20, axis='pitch', clamp=True)
+                self.move_joint("R_Knee", 135, steps=20, axis='pitch', clamp=True)
+                self.move_joint("L_Ankle_Cluster", 45, steps=18, axis='pitch', clamp=True)
+                self.move_joint("R_Ankle_Cluster", 45, steps=18, axis='pitch', clamp=True)
+                self.move_ball([
+                    ("L_Shoulder_Cluster", 0, -90, 0),
+                    ("R_Shoulder_Cluster", 0, 90, 0),
+                ], steps=15)
+                self._interfere("Truck-mode check")
+                Logger.log("TRUCK MODE — holding position. No reverse transform.")
+
             # ─── Module 9: Stability + Loads ──────────────────────────────
             def run_stability_analysis(self):
                 Logger.log("--- MODULE 9 / 9 ---")
@@ -1282,6 +1313,7 @@ def run(context):
                     "run":       self.simulate_running,
                     "combat":    self.simulate_combat,
                     "transform": self.simulate_transformation,
+                    "truck":     self.simulate_truck_mode,
                     "stability": self.run_stability_analysis,
                     "servo":     self.estimate_servo_loads,
                 }
