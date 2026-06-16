@@ -4,7 +4,7 @@ import os
 import sys
 
 URL = "http://127.0.0.1:27182/mcp"
-PAYLOAD_FILE = os.path.join(os.path.dirname(__file__), "optimus_prime_g1_v7.py")
+PAYLOAD_FILE = os.path.join(os.path.dirname(__file__), "optimus_prime_g1_v8.py")
 session_id = None
 
 def send_request(payload):

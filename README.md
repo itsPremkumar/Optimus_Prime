@@ -30,7 +30,7 @@ An open-source **Autodesk Fusion 360 simulation suite** that programmatically bu
 
 ## What Is This?
 
-This project is a **Python script** (`src/optimus_prime_g1_v7.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
+This project is a **Python script** (`src/optimus_prime_g1_v8.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
 
 1. **Builds** a complete Optimus Prime G1 3D model with 100+ components
 2. **Applies** materials (red/blue metallic paint, chrome, rubber, glass)
@@ -84,7 +84,7 @@ python src/run_simulation.py --stop
 ```
 Optimus_Prime/
 ├── src/                           # Source code
-│   ├── optimus_prime_g1_v7.py     # Main Fusion 360 script (model + simulation engine)
+│   ├── optimus_prime_g1_v8.py     # Main Fusion 360 script (model + simulation engine)
 │   ├── run_simulation.py          # CLI controller — sends the script to Fusion 360
 │   ├── capture_optimus.py         # Multi-angle viewport screenshot capture
 │   └── api_test.py                # Dev utility to query Fusion 360 API
@@ -166,7 +166,7 @@ Saves 6 viewport renders (Front, Back, Left, Right, Top, Isometric) to `images/`
 | `C:\OptimusPrime_STL\robot.urdf` | Minimal URDF skeleton for robotics toolchain import |
 | `images/*.png` | Viewport screenshots (1920×1080) from `capture_optimus.py` |
 
-> **STL batch export** is controlled via `EXPORT_STL = True/False` flag at the top of `src/optimus_prime_g1_v7.py`.
+> **STL batch export** is controlled via `EXPORT_STL = True/False` flag at the top of `src/optimus_prime_g1_v8.py`.
 
 ---
 
