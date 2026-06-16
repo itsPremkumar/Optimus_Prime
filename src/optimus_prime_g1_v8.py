@@ -27,13 +27,17 @@ import math
 import os
 import datetime
 
+_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+LOG_FILE = rf"C:\opt_fusion_log_{_ts}.txt"
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════════
 
 CLEARANCE   = 0.060  # 0.60 mm (v7 used 0.45 mm) - better FDM tolerance
-LOG_FILE    = r"C:\opt_fusion_log.txt"
+_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+LOG_FILE    = rf"C:\opt_fusion_log_{_ts}.txt"
 ANKLE_CTR   = 3.8
 SHIN_CTR    = 9.3
 KNEE_CTR    = 14.8
@@ -848,7 +852,6 @@ def run(context):
                     self._app.activeViewport.refresh()
                 except Exception:
                     pass
-                adsk.doEvents()
 
             def _clamp(self, joint_name, axis, deg):
                 limits = JOINT_LIMITS.get(joint_name, {}).get(axis)
@@ -898,9 +901,7 @@ def run(context):
 
             def move_ball(self, targets, steps=20):
                 for i in range(1, steps + 1):
-                    t = i / steps
-                    if True:
-                        t = self._ease(t)
+                    t = self._ease(i / steps)
                     for name, pitch, yaw, roll in targets:
                         j = self._gj(name)
                         if not j:
