@@ -40,7 +40,8 @@ def main():
     })
     send_request({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
-    output_dir = r"C:\one\Automated_3D_Modeling\12_Optimus_Prime_Simulation\images"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(os.path.dirname(script_dir), "output", "screenshots")
     os.makedirs(output_dir, exist_ok=True)
 
     script_content = f"""

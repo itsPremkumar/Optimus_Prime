@@ -4,7 +4,9 @@ import os
 import sys
 
 URL = "http://127.0.0.1:27182/mcp"
-PAYLOAD_FILE = os.path.join(os.path.dirname(__file__), "optimus_prime_g1_v8.py")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.join(os.path.dirname(BASE_DIR), "output")
+PAYLOAD_FILE = os.path.join(BASE_DIR, "optimus_prime_g1_v8.py")
 session_id = None
 
 def send_request(payload):
@@ -47,7 +49,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.stop:
-        with open(r"C:\opt_fusion_stop.flag", "w") as f:
+        with open(os.path.join(OUTPUT_DIR, "stop.flag"), "w") as f:
             f.write("STOP")
         print("Stop command issued! The running Fusion 360 script will abort within 1 frame.")
         sys.exit(0)

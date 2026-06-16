@@ -1,4 +1,3 @@
-
 TARGET_MODULE = "truck"
 EXPORT_STL = False
 EXPORT_URDF = False
@@ -22,6 +21,7 @@ LOG_DIR = os.path.join(OUTPUT_DIR, "logs")
 SCREENSHOT_DIR = os.path.join(OUTPUT_DIR, "screenshots")
 EXPORT_DIR = os.path.join(OUTPUT_DIR, "exports")
 LOG_FILE = os.path.join(LOG_DIR, f"optimus_fusion_log_{_ts}.txt")
+STOP_FLAG = os.path.join(OUTPUT_DIR, "stop.flag")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -837,9 +837,9 @@ def run(context):
                     Logger.log(f"_set({axis},{val:.2f}) failed: {e}", "ERROR")
 
             def _refresh(self):
-                if os.path.exists(r"C:\opt_fusion_stop.flag"):
+                if os.path.exists(STOP_FLAG):
                     try:
-                        os.remove(r"C:\opt_fusion_stop.flag")
+                        os.remove(STOP_FLAG)
                     except Exception:
                         pass
                     raise Exception("SIMULATION_ABORTED_BY_USER")
