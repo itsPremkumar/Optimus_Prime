@@ -1092,17 +1092,19 @@ def run(context):
                 Logger.log("--- MODULE 8a / 9 ---")
                 Logger.log("MODULE 8a: TRANSFORMATION (Robot→Truck)")
 
-                # Stage 1: Stow wrists
+                # Stage 1: Stow wrists and fold elbows
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                self.move_joint("R_Elbow", 150, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 150, steps=18, axis='pitch', clamp=True)
 
-                # Stage 2: Tuck head (pitch = backward tilt into chest)
-                self.move_ball([("Neck_Cluster", -60, 0, 0)], steps=15)
+                # Stage 2: Tuck head (look down to flatten profile)
+                self.move_ball([("Neck_Cluster", 45, 0, 0)], steps=15)
 
-                # Stage 3: Shoulder sweep back and inward to sides
+                # Stage 3: Shoulders point straight back to rest against torso
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -90, -45, 0),
-                    ("R_Shoulder_Cluster", -90, 45, 0),
+                    ("L_Shoulder_Cluster", -90, 0, 0),
+                    ("R_Shoulder_Cluster", -90, 0, 0),
                 ], steps=22)
 
                 # Stage 4: Hip flexion (yaw=backward fold 90 degrees)
@@ -1138,6 +1140,8 @@ def run(context):
                     ("R_Shoulder_Cluster", 0, 0, 0),
                 ], steps=22)
                 self.move_ball([("Neck_Cluster", 0, 0, 0)], steps=15)
+                self.move_joint("R_Elbow", 0, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 0, steps=18, axis='pitch', clamp=True)
                 self.move_joint("R_Wrist", 0, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", 0, steps=15, axis='pitch', clamp=True)
                 
@@ -1172,15 +1176,17 @@ def run(context):
                 Logger.log("TRANSFORMATION (Robot→Truck) — holding position")
                 self.debug_joints("BEFORE_TRANSFORM")
 
-                # Stage 1: Stow wrists
+                # Stage 1: Stow wrists and fold elbows
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                self.move_joint("R_Elbow", 150, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 150, steps=18, axis='pitch', clamp=True)
                 # Stage 2: Tuck head
-                self.move_ball([("Neck_Cluster", -60, 0, 0)], steps=15)
-                # Stage 3: Shoulder sweep back and inward
+                self.move_ball([("Neck_Cluster", 45, 0, 0)], steps=15)
+                # Stage 3: Shoulders point straight back
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -90, -45, 0),
-                    ("R_Shoulder_Cluster", -90, 45, 0),
+                    ("L_Shoulder_Cluster", -90, 0, 0),
+                    ("R_Shoulder_Cluster", -90, 0, 0),
                 ], steps=22)
                 # Stage 4: Hip flexion (yaw=backward fold 90 degrees)
                 self.move_ball([
