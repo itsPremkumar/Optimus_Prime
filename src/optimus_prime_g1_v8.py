@@ -1092,17 +1092,16 @@ def run(context):
                 Logger.log("--- MODULE 8a / 9 ---")
                 Logger.log("MODULE 8a: TRANSFORMATION (Robot→Truck)")
 
-                # Stage 1: Stow wrists and fold elbows
+                # Stage 1: Stow wrists and keep elbows completely straight
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                self.move_joint("R_Elbow", 0, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 0, steps=18, axis='pitch', clamp=True)
 
                 # Stage 2: Tuck head (fold completely backward into chest cavity)
                 self.move_ball([("Neck_Cluster", -90, 0, 0)], steps=15)
 
-                # Stage 3: Shoulders point straight back to rest against torso
-                # Use -88 instead of -90 to avoid Euler angle Gimbal lock in Fusion 360!
+                # Stage 3: Shoulders fold backward against torso
                 self.move_ball([
                     ("L_Shoulder_Cluster", -88, 0, 0),
                     ("R_Shoulder_Cluster", -88, 0, 0),
@@ -1191,15 +1190,14 @@ def run(context):
                 Logger.log("TRANSFORMATION (Robot→Truck) — holding position")
                 self.debug_joints("BEFORE_TRANSFORM")
 
-                # Stage 1: Stow wrists and fold elbows
+                # Stage 1: Stow wrists and keep elbows completely straight
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                self.move_joint("R_Elbow", 0, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 0, steps=18, axis='pitch', clamp=True)
                 # Stage 2: Tuck head (fold completely backward into chest cavity)
                 self.move_ball([("Neck_Cluster", -90, 0, 0)], steps=15)
-                # Stage 3: Shoulders point straight back
-                # Use -88 instead of -90 to avoid Gimbal lock
+                # Stage 3: Shoulders fold backward against torso
                 self.move_ball([
                     ("L_Shoulder_Cluster", -88, 0, 0),
                     ("R_Shoulder_Cluster", -88, 0, 0),
@@ -1226,6 +1224,35 @@ def run(context):
                 except Exception:
                     pass
                 self.capture_screenshots("optimus_truck")
+
+            # ─── Battle Mode (arms spread, cannon ready) it is for the vehical battle mode in forward possition ──────────────
+            def simulate_battle_mode(self):
+                self.reset_all(steps=10)
+                Logger.log("--- BATTLE MODE ---")
+                Logger.log("TRANSFORMATION (Robot→Battle) — holding position")
+
+                # Stage 1: Fold elbows and wrists for combat stance
+                self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
+
+                # Stage 2: Shoulders swing outward (yaw) for spread-arm pose
+                self.move_ball([
+                    ("L_Shoulder_Cluster", 0, -88, 0),
+                    ("R_Shoulder_Cluster", 0, -88, 0),
+                ], steps=22)
+
+                self._interfere("Battle-mode check")
+                Logger.log("BATTLE MODE — holding position.")
+                try:
+                    cam = self._app.activeViewport.camera
+                    cam.isFitView = True
+                    self._app.activeViewport.camera = cam
+                    self._app.activeViewport.refresh()
+                except Exception:
+                    pass
+                self.capture_screenshots("optimus_battle")
 
             # ─── Module 9: Stability + Loads ──────────────────────────────
             def run_stability_analysis(self):
@@ -1382,6 +1409,7 @@ def run(context):
                     "combat":    self.simulate_combat,
                     "transform": self.simulate_transformation,
                     "truck":     self.simulate_truck_mode,
+                    "battle":    self.simulate_battle_mode,
                     "robot":     self.simulate_robot_mode,
                     "stability": self.run_stability_analysis,
                     "servo":     self.estimate_servo_loads,
