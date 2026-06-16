@@ -1,26 +1,7 @@
-"""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  OPTIMUS PRIME G1 — FULL SIMULATION ENGINE v8.0                              ║
-║                                                                              ║
-║  Changelog since v7.0:                                                       ║
-║   • ALL transformation angles now within joint ROM limits                    ║
-║   • Hip servos upgraded to 20 kg.cm (was MG996R 9.4 kg.cm)                  ║
-║   • Waist servo upgraded to 25 kg.cm (was MG996R 9.4 kg.cm)                 ║
-║   • Torso-Pelvis collision fixed (reduced 2.9cm Z-overlap)                  ║
-║   • SteerPod-bumper clearance increased (0.4cm -> 0.9cm)                    ║
-║   • Hip servo no longer intrudes into pelvis shell                           ║
-║   • CLEARANCE increased to 0.060 cm (was 0.045) for better FDM tolerance    ║
-║   • Buffered logger with auto-flush and log levels                           ║
-║   • Target-specific skip-export STL body tags                                ║
-║   • All 9 modules verified within joint angle limits                         ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-"""
 
 TARGET_MODULE = "truck"
 EXPORT_STL = False
 EXPORT_URDF = False
-EXPORT_DIR = r"C:\OptimusPrime_STL"
-SCREENSHOT_DIR = r"C:\one\Automated_3D_Modeling\12_Optimus_Prime_Simulation\images"
 CAPTURE_SCREENSHOTS = True
 
 import adsk.core
@@ -32,7 +13,15 @@ import datetime
 import time
 
 _ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-LOG_FILE = rf"C:\opt_fusion_log_{_ts}.txt"
+
+# ─── Output directory structure ──────────────────────────────
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
+OUTPUT_DIR = os.path.join(PROJECT_DIR, "output")
+LOG_DIR = os.path.join(OUTPUT_DIR, "logs")
+SCREENSHOT_DIR = os.path.join(OUTPUT_DIR, "screenshots")
+EXPORT_DIR = os.path.join(OUTPUT_DIR, "exports")
+LOG_FILE = os.path.join(LOG_DIR, f"optimus_fusion_log_{_ts}.txt")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -110,6 +99,7 @@ class Logger:
         if not cls._buffer:
             return
         try:
+            os.makedirs(LOG_DIR, exist_ok=True)
             with open(LOG_FILE, "a", encoding="utf-8") as f:
                 f.write("".join(cls._buffer))
         except Exception:
