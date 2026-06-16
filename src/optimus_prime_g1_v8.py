@@ -73,8 +73,8 @@ JOINT_LIMITS = {
     "R_Shoulder_Cluster": {"pitch": (-175, 60),  "yaw": (-90, 90),    "roll": (-90, 90)},
     "L_Elbow":            {"pitch": (0, 150)},
     "R_Elbow":            {"pitch": (0, 150)},
-    "L_Wrist":            {"roll": (-180, 180)},
-    "R_Wrist":            {"roll": (-180, 180)},
+    "L_Wrist":            {"pitch": (0, 90),    "roll": (-180, 180)},
+    "R_Wrist":            {"pitch": (0, 135),   "roll": (-180, 180)},
     "Blaster_Fold":       {"pitch": (-90, 0)},
 }
 
@@ -622,8 +622,8 @@ def run(context):
             cyl(ua, f"Stk_Base_{side}",  ax+m*3.2, -1.4, SHOULDER_CTR-0.2, 0.72, 1.0, "z", chrome)
             cone_shape(ua, f"Stk_Tip_{side}", ax+m*3.2, -1.4, SHOULDER_CTR+6.5,
                        0.50, 0.30, 0.60, "z", dark_grey)
-            box(ua, "UA_Link",           ax,        0, ELBOW_Z+3.0,      3.0, 3.2, 9.0, op_red)
-            box(ua, "UA_Skin",           ax+m*1.65, 0, ELBOW_Z+3.0,      0.50, 3.2, 9.0, chrome)
+            box(ua, "UA_Link",           ax,        0, ELBOW_Z+3.0,      3.0, 3.2, 5.0, op_red)
+            box(ua, "UA_Skin",           ax+m*1.65, 0, ELBOW_Z+3.0,      0.50, 3.2, 5.0, chrome)
             mg996r(ua, f"{side}_ShY",    ax, 0, SHOULDER_CTR+1.5, "z")
             bearing(ua, f"{side}_SYB",   ax, 0, SHOULDER_CTR+2.0, "z", 1.00, 0.55)
             u_bracket(ua, f"{side}_SPB", ax, 0, SHOULDER_CTR,     4.8, 3.4, 3.4)
@@ -633,16 +633,16 @@ def run(context):
             u_bracket(ua, f"{side}_EB",  ax, 0, ELBOW_Z,          3.8, 3.0, 3.0)
             mg996r(ua, f"{side}_ElbP",   ax, 0, ELBOW_Z,          "x")
             bearing(ua, f"{side}_EBr",   ax, 0, ELBOW_Z-0.5,      "x", 0.95, 0.52)
-            wire_channel(ua, f"{side}_UAW", ax, 0, ELBOW_Z+4.0,   0.4, 10.0, "z")
+            wire_channel(ua, f"{side}_UAW", ax, 0, ELBOW_Z+3.0,   0.4, 5.0, "z")
             screw_hole(ua, ax, 0, ELBOW_Z+3.0)
 
             fa = new_component(f"OP_Forearm_{side}")
-            box(fa, "FA_Link",   ax,       0,   WRIST_Z+3.5, 3.0, 3.6, 7.2, op_blue)
-            box(fa, "FA_Fender", ax+m*2.0, 0,   WRIST_Z+3.5, 0.50, 5.0, 8.4, op_red)
-            box(fa, "FA_Back",   ax,       2.2, WRIST_Z+3.5, 2.4, 0.35, 7.0, chrome)
+            box(fa, "FA_Link",   ax,       0,   WRIST_Z+3.5, 3.0, 3.6, 4.5, op_blue)
+            box(fa, "FA_Fender", ax+m*2.0, 0,   WRIST_Z+3.5, 0.50, 5.0, 5.5, op_red)
+            box(fa, "FA_Back",   ax,       2.2, WRIST_Z+3.5, 2.4, 0.35, 4.5, chrome)
             mg90s(fa, f"{side}_WR",  ax, 0, WRIST_Z+0.8, "x")
             bearing(fa, f"{side}_WB", ax, 0, WRIST_Z+0.5, "x", 0.80, 0.44)
-            wire_channel(fa, f"{side}_FAW", ax, 0, WRIST_Z+4.0, 0.4, 8.0, "z")
+            wire_channel(fa, f"{side}_FAW", ax, 0, WRIST_Z+3.5, 0.4, 4.5, "z")
             screw_hole(fa, ax, 0, WRIST_Z+4.0)
 
             hand = new_component(f"OP_Hand_{side}")
@@ -653,12 +653,12 @@ def run(context):
 
             if side == "R":
                 blast = new_component("OP_Ion_Blaster")
-                cyl(blast,  "Barrel_Main",  ax, -2.0, WRIST_Z-5.0, 0.90, 7.5, "z", dark_metal)
-                cyl(blast,  "Barrel_Tip",   ax, -2.0, WRIST_Z-9.0, 0.65, 1.0, "z", chrome)
-                box(blast,  "Blaster_Body", ax, -1.0, WRIST_Z-4.5, 2.4, 2.2, 3.0, dark_metal)
-                box(blast,  "Blast_Guard",  ax, -0.2, WRIST_Z-4.5, 2.6, 0.35, 2.0, chrome)
+                cyl(blast,  "Barrel_Main",  ax, -2.0, WRIST_Z-3.0, 0.90, 4.0, "z", dark_metal)
+                cyl(blast,  "Barrel_Tip",   ax, -2.0, WRIST_Z-5.5, 0.65, 1.0, "z", chrome)
+                box(blast,  "Blaster_Body", ax, -1.0, WRIST_Z-3.0, 2.4, 2.2, 2.5, dark_metal)
+                box(blast,  "Blast_Guard",  ax, -0.2, WRIST_Z-3.0, 2.6, 0.35, 1.5, chrome)
                 box(blast,  "Hinge_Block",  ax, -0.8, WRIST_Z-1.5, 1.0, 0.6, 1.0, dark_metal)
-                cyl(blast,  "Scope",   ax+1.4, -2.0, WRIST_Z-4.5, 0.40, 3.2, "z", chrome)
+                cyl(blast,  "Scope",   ax+1.4, -2.0, WRIST_Z-3.0, 0.40, 2.0, "z", chrome)
 
         # ⑥ BACKPACK
         bp = new_component("OP_Backpack")
@@ -737,7 +737,7 @@ def run(context):
             ball_joint(f"{side}_Ankle_Cluster",    fo, sn, sx, 0, ANKLE_CTR+2.2)
             ball_joint(f"{side}_Shoulder_Cluster", ua, t,  ax, 0, SHOULDER_CTR)
             revolute_joint(f"{side}_Elbow",        fa, ua, ax, 0, ELBOW_Z,      "x")
-            revolute_joint(f"{side}_Wrist",        ha, fa, ax, 0, WRIST_Z+0.8,  "z")
+            ball_joint(f"{side}_Wrist",            ha, fa, ax, 0, WRIST_Z+0.8)
 
             if side == "R":
                 bl = occs.get("OP_Ion_Blaster")
@@ -784,10 +784,11 @@ def run(context):
                 "L_Hip_Cluster", "R_Hip_Cluster",
                 "L_Ankle_Cluster", "R_Ankle_Cluster",
                 "L_Shoulder_Cluster", "R_Shoulder_Cluster",
+                "L_Wrist", "R_Wrist",
             }
             REV_JOINTS = {
                 "L_Knee", "R_Knee", "L_Elbow", "R_Elbow",
-                "L_Wrist", "R_Wrist", "Blaster_Fold",
+                "Blaster_Fold",
             }
 
             def __init__(self, root, comps_list, design, app, ui):
@@ -1006,8 +1007,8 @@ def run(context):
                 self.move_joint("R_Shoulder_Cluster", 80, steps=15, axis='yaw')
                 self.move_joint("R_Elbow", 90, steps=12, axis='pitch')
                 for _ in range(3):
-                    self.move_joint("R_Wrist", -30, steps=8, axis='roll')
-                    self.move_joint("R_Wrist", 30, steps=8, axis='roll')
+                    self.move_ball([("R_Wrist", None, None, -30)], steps=8)
+                    self.move_ball([("R_Wrist", None, None, 30)], steps=8)
                 self.reset_all(steps=12)
 
             # ─── Module 4: Idle Breathing ─────────────────────────────────
@@ -1070,7 +1071,7 @@ def run(context):
                 self.move_joint("R_Shoulder_Cluster", -45, steps=10, axis='pitch')
                 self.move_joint("R_Shoulder_Cluster", 45, steps=8, axis='yaw')
                 self.move_joint("R_Elbow", 120, steps=8, axis='pitch')
-                self.move_joint("R_Wrist", 20, steps=6, axis='roll')
+                self.move_ball([("R_Wrist", None, None, 20)], steps=6)
                 self.move_joint("R_Shoulder_Cluster", -10, steps=6, axis='pitch')
                 self.move_joint("R_Shoulder_Cluster", -80, steps=10, axis='pitch')
                 self.move_joint("R_Shoulder_Cluster", -30, steps=6, axis='yaw')
@@ -1087,13 +1088,16 @@ def run(context):
                 Logger.log("--- MODULE 8a / 9 ---")
                 Logger.log("MODULE 8a: TRANSFORMATION (Robot→Truck)")
 
-                # Stage 1: Fold wrists flat (roll 90°), straighten elbows, fold blaster
+                # Stage 1: Fold wrists up (pitch 90°) and twist flat (roll 90°),
+                # straighten elbows, fold blaster flat against forearm
                 self.move_group([
-                    ("R_Wrist", 90, "roll"),
-                    ("L_Wrist", 90, "roll"),
                     ("R_Elbow", 0, "pitch"),
                     ("L_Elbow", 0, "pitch"),
                     ("Blaster_Fold", -90, "pitch"),
+                ], steps=20)
+                self.move_ball([
+                    ("L_Wrist", 90, None, 90),
+                    ("R_Wrist", 135, None, 90),
                 ], steps=20)
 
                 # Stage 2: Tuck head (fold completely backward into chest cavity)
@@ -1138,10 +1142,12 @@ def run(context):
                     ("R_Shoulder_Cluster", 0, 0, 0),
                 ], steps=22)
                 self.move_ball([("Neck_Cluster", 0, 0, 0)], steps=15)
+                self.move_ball([
+                    ("L_Wrist", 0, None, 0),
+                    ("R_Wrist", 0, None, 0),
+                ], steps=18)
                 self.move_group([
                     ("Blaster_Fold", 0, "pitch"),
-                    ("R_Wrist", 0, "roll"),
-                    ("L_Wrist", 0, "roll"),
                     ("R_Elbow", 0, "pitch"),
                     ("L_Elbow", 0, "pitch"),
                 ], steps=18)
@@ -1192,13 +1198,16 @@ def run(context):
                 Logger.log("TRANSFORMATION (Robot→Truck) — holding position")
                 self.debug_joints("BEFORE_TRANSFORM")
 
-                # Stage 1: Fold wrists flat (roll 90°), straighten elbows, fold blaster
+                # Stage 1: Fold wrists up (pitch 90°) and twist flat (roll 90°),
+                # straighten elbows, fold blaster flat against forearm
                 self.move_group([
-                    ("R_Wrist", 90, "roll"),
-                    ("L_Wrist", 90, "roll"),
                     ("R_Elbow", 0, "pitch"),
                     ("L_Elbow", 0, "pitch"),
                     ("Blaster_Fold", -90, "pitch"),
+                ], steps=20)
+                self.move_ball([
+                    ("L_Wrist", 90, None, 90),
+                    ("R_Wrist", 135, None, 90),
                 ], steps=20)
                 # Stage 2: Tuck head (fold completely backward into chest cavity)
                 self.move_ball([("Neck_Cluster", -90, 0, 0)], steps=15)
@@ -1238,8 +1247,10 @@ def run(context):
 
                 # Stage 1: Fold elbows and wrists for combat stance (wrist roll 90° = sideways grip)
                 self.move_joint("Blaster_Fold", 0, steps=10, axis='pitch')
-                self.move_joint("R_Wrist", 90, steps=15, axis='roll', clamp=True)
-                self.move_joint("L_Wrist", 90, steps=15, axis='roll', clamp=True)
+                self.move_ball([
+                    ("L_Wrist", None, None, 90),
+                    ("R_Wrist", None, None, 90),
+                ], steps=15)
                 self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
                 self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
 
@@ -1464,11 +1475,6 @@ def run(context):
 
     except Exception:
         Logger.log(f"FATAL ERROR:\n{traceback.format_exc()}", "ERROR")
-        if ui:
-            try:
-                ui.messageBox(f"FATAL ERROR:\n{traceback.format_exc()}")
-            except Exception:
-                pass
 
     finally:
         Logger.flush()
