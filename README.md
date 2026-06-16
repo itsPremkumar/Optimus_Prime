@@ -13,7 +13,7 @@
   ============================================================
 -->
 
-# Optimus Prime G1 — Full Simulation Engine v6.0
+# Optimus Prime G1 — Full Simulation Engine v7.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://python.org)
@@ -30,7 +30,7 @@ An open-source **Autodesk Fusion 360 simulation suite** that programmatically bu
 
 ## What Is This?
 
-This project is a **Python script** (`optimus_prime_simulation_v6.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
+This project is a **Python script** (`src/optimus_prime_g1_v7.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
 
 1. **Builds** a complete Optimus Prime G1 3D model with 100+ components
 2. **Applies** materials (red/blue metallic paint, chrome, rubber, glass)
@@ -68,28 +68,38 @@ git clone https://github.com/itsPremkumar/Optimus_Prime.git
 cd Optimus_Prime
 
 # Full simulation (all 9 modules)
-python run_simulation.py
+python src/run_simulation.py
 
 # Single module
-python run_simulation.py --module walk
+python src/run_simulation.py --module walk
 
 # Stop a running simulation
-python run_simulation.py --stop
+python src/run_simulation.py --stop
 ```
 
 ---
 
-## Documentation
+## Project Structure
 
-| File | Purpose |
-|------|---------|
-| [`optimus_prime_simulation_v6.py`](optimus_prime_simulation_v6.py) | Main Fusion 360 script (model + simulation engine) |
-| [`run_simulation.py`](run_simulation.py) | CLI controller — sends the script to Fusion 360 |
-| [`capture_optimus.py`](capture_optimus.py) | Multi-angle viewport screenshot capture |
-| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution guidelines |
-| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community standards |
-| [`SECURITY.md`](SECURITY.md) | Security policy |
+```
+Optimus_Prime/
+├── src/                           # Source code
+│   ├── optimus_prime_g1_v7.py     # Main Fusion 360 script (model + simulation engine)
+│   ├── run_simulation.py          # CLI controller — sends the script to Fusion 360
+│   ├── capture_optimus.py         # Multi-angle viewport screenshot capture
+│   └── api_test.py                # Dev utility to query Fusion 360 API
+├── archive/                       # Previous versions (reference only)
+│   └── optimus_prime_simulation_v6.py
+├── images/                        # Saved viewport screenshots
+├── .github/                       # GitHub issue/PR templates
+├── CHANGELOG.md                   # Version history
+├── CODE_OF_CONDUCT.md             # Community standards
+├── CONTRIBUTING.md                # Contribution guidelines
+├── LICENSE                        # MIT License
+├── README.md                      # Project overview and usage
+├── SECURITY.md                    # Security policy
+└── .gitignore
+```
 
 ### Simulation Modules
 
@@ -108,7 +118,7 @@ python run_simulation.py --stop
 ### Capture Screenshots
 
 ```bash
-python capture_optimus.py
+python src/capture_optimus.py
 ```
 
 Saves 6 viewport renders (Front, Back, Left, Right, Top, Isometric) to `images/`.
@@ -156,7 +166,7 @@ Saves 6 viewport renders (Front, Back, Left, Right, Top, Isometric) to `images/`
 | `C:\OptimusPrime_STL\robot.urdf` | Minimal URDF skeleton for robotics toolchain import |
 | `images/*.png` | Viewport screenshots (1920×1080) from `capture_optimus.py` |
 
-> **STL batch export** is available but commented out in `optimus_prime_simulation_v6.py`. Uncomment to export every printable body to `C:\OptimusPrime_STL\`.
+> **STL batch export** is controlled via `EXPORT_STL = True/False` flag at the top of `src/optimus_prime_g1_v7.py`.
 
 ---
 
