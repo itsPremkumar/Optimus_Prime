@@ -38,7 +38,7 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optimus Prime G1 Simulation Controller")
     parser.add_argument("--module", type=str, default="ALL", 
-                        choices=["ALL", "rom", "head", "wave", "breathing", "walk", "run", "combat", "transform", "truck", "stability", "servo"],
+                        choices=["ALL", "rom", "head", "wave", "breathing", "walk", "run", "combat", "transform", "truck", "robot", "stability", "servo"],
                         help="Select a specific simulation module to run in isolation.")
     parser.add_argument("--stop", action="store_true", 
                         help="Dynamically stop a running simulation.")

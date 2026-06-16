@@ -70,7 +70,7 @@ SERVO_SPECS = {
 #   Shoulder:   yaw = side-swing, pitch = tilt, roll = twist
 JOINT_LIMITS = {
     "Waist_Cluster":      {"pitch": (-45, 60),   "yaw": (-15, 15),    "roll": (-15, 15)},
-    "Neck_Cluster":       {"pitch": (-60, 45),   "yaw": (-20, 20),    "roll": (-20, 20)},
+    "Neck_Cluster":       {"pitch": (-90, 45),   "yaw": (-20, 20),    "roll": (-20, 20)},
     "L_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-95, 95),    "roll": (-30, 30)},
     "R_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-95, 95),    "roll": (-30, 30)},
     "L_Knee":             {"pitch": (0, 135)},
@@ -1095,16 +1095,17 @@ def run(context):
                 # Stage 1: Stow wrists and fold elbows
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("R_Elbow", 150, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 150, steps=18, axis='pitch', clamp=True)
+                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
 
-                # Stage 2: Tuck head (look down to flatten profile)
-                self.move_ball([("Neck_Cluster", 45, 0, 0)], steps=15)
+                # Stage 2: Tuck head (fold completely backward into chest cavity)
+                self.move_ball([("Neck_Cluster", -90, 0, 0)], steps=15)
 
                 # Stage 3: Shoulders point straight back to rest against torso
+                # Use -88 instead of -90 to avoid Euler angle Gimbal lock in Fusion 360!
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -90, 0, 0),
-                    ("R_Shoulder_Cluster", -90, 0, 0),
+                    ("L_Shoulder_Cluster", -88, 0, 0),
+                    ("R_Shoulder_Cluster", -88, 0, 0),
                 ], steps=22)
 
                 # Stage 4: Hip flexion (yaw=backward fold 90 degrees)
@@ -1170,6 +1171,20 @@ def run(context):
                     else:
                         Logger.log(f"  {j.name:30s} {otype} (unexpected type)", "WARN")
 
+            # ─── Robot Mode (reset to default pose and hold) ────────
+            def simulate_robot_mode(self):
+                self.reset_all(steps=10)
+                Logger.log("--- ROBOT MODE ---")
+                Logger.log("ROBOT MODE — holding position.")
+                try:
+                    cam = self._app.activeViewport.camera
+                    cam.isFitView = True
+                    self._app.activeViewport.camera = cam
+                    self._app.activeViewport.refresh()
+                except Exception:
+                    pass
+                self.capture_screenshots("optimus_robot")
+
             def simulate_truck_mode(self):
                 self.reset_all(steps=10)
                 Logger.log("--- TRUCK MODE ---")
@@ -1179,14 +1194,15 @@ def run(context):
                 # Stage 1: Stow wrists and fold elbows
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("R_Elbow", 150, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 150, steps=18, axis='pitch', clamp=True)
-                # Stage 2: Tuck head
-                self.move_ball([("Neck_Cluster", 45, 0, 0)], steps=15)
+                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                # Stage 2: Tuck head (fold completely backward into chest cavity)
+                self.move_ball([("Neck_Cluster", -90, 0, 0)], steps=15)
                 # Stage 3: Shoulders point straight back
+                # Use -88 instead of -90 to avoid Gimbal lock
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -90, 0, 0),
-                    ("R_Shoulder_Cluster", -90, 0, 0),
+                    ("L_Shoulder_Cluster", -88, 0, 0),
+                    ("R_Shoulder_Cluster", -88, 0, 0),
                 ], steps=22)
                 # Stage 4: Hip flexion (yaw=backward fold 90 degrees)
                 self.move_ball([
@@ -1366,6 +1382,7 @@ def run(context):
                     "combat":    self.simulate_combat,
                     "transform": self.simulate_transformation,
                     "truck":     self.simulate_truck_mode,
+                    "robot":     self.simulate_robot_mode,
                     "stability": self.run_stability_analysis,
                     "servo":     self.estimate_servo_loads,
                 }
