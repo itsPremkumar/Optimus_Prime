@@ -458,7 +458,7 @@ def run(context):
         def tt_wheel(comp, tag, cx, cy, cz, side=1):
             cl = CLEARANCE
             box(comp, f"{tag}_VisGB",    cx, cy, cz, 2.30, 5.20, 1.90, yellow_met)
-            cyl(comp, f"{tag}_VisMot",   cx, cy-3.0, cz, 0.90, 2.10, "y", chrome)
+            cyl(comp, f"{tag}_VisMot",   cx, cy-1.5, cz, 0.90, 2.10, "y", chrome)
             cyl(comp, f"{tag}_VisShaft", cx+side*1.75, cy, cz, 0.20, 3.50, "x", chrome)
             cyl(comp, f"{tag}_VisHub",   cx+side*3.25, cy, cz, 0.80, 2.60, "x", dark_metal)
             cyl(comp, f"{tag}_VisTire",  cx+side*3.25, cy, cz, 3.25, 2.60, "x", rubber_blk)
@@ -597,8 +597,8 @@ def run(context):
             box(shin, "Shin_Armor", sx,  -2.6, SHIN_CTR,     3.0, 0.32, 9.0, chrome)
             box(shin, "Shin_Rear",  sx,   2.6, SHIN_CTR,     1.8, 0.32, 9.5, dark_grey)
             box(shin, "Shin_Beam",  sx,   0.4, SHIN_CTR,     1.6, 2.0, 10.0, dark_metal)
-            tt_wheel(shin, f"{side}_WF", sx+m*2.0, 3.5, SHIN_CTR+4.0, m)
-            tt_wheel(shin, f"{side}_WR", sx+m*2.0, 3.5, SHIN_CTR-4.0, m)
+            tt_wheel(shin, f"{side}_WF", sx+m*2.0, -4.0, SHIN_CTR+4.0, m)
+            tt_wheel(shin, f"{side}_WR", sx+m*2.0, -4.0, SHIN_CTR-4.0, m)
             bearing(shin, f"{side}_KLB", sx, 0, KNEE_CTR-0.5, "x", 1.00, 0.55)
             wire_channel(shin, f"{side}_SW", sx, 0, SHIN_CTR, 0.5, 11.0, "z")
             cut_cavity(shin, box(shin, "FtTuck", sx, 2.6, SHIN_CTR-3.5, 5.0, 1.2, 4.0))
