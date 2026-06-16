@@ -14,7 +14,10 @@ import time
 _ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
 # ─── Output directory structure ──────────────────────────────
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+try:
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    SCRIPT_DIR = os.getcwd()
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_DIR, "output")
 LOG_DIR = os.path.join(OUTPUT_DIR, "logs")
@@ -70,8 +73,9 @@ JOINT_LIMITS = {
     "R_Shoulder_Cluster": {"pitch": (-175, 60),  "yaw": (-90, 90),    "roll": (-90, 90)},
     "L_Elbow":            {"pitch": (0, 150)},
     "R_Elbow":            {"pitch": (0, 150)},
-    "L_Wrist":            {"pitch": (-45, 45)},
-    "R_Wrist":            {"pitch": (-45, 45)},
+    "L_Wrist":            {"roll": (-180, 180)},
+    "R_Wrist":            {"roll": (-180, 180)},
+    "Blaster_Fold":       {"pitch": (-90, 0)},
 }
 
 SPLIT_KEYS = {"Shell", "Link", "Main", "Armor", "Core", "Pod", "Palm", "Block", "Sole"}
@@ -653,6 +657,7 @@ def run(context):
                 cyl(blast,  "Barrel_Tip",   ax, -2.0, WRIST_Z-9.0, 0.65, 1.0, "z", chrome)
                 box(blast,  "Blaster_Body", ax, -1.0, WRIST_Z-4.5, 2.4, 2.2, 3.0, dark_metal)
                 box(blast,  "Blast_Guard",  ax, -0.2, WRIST_Z-4.5, 2.6, 0.35, 2.0, chrome)
+                box(blast,  "Hinge_Block",  ax, -0.8, WRIST_Z-1.5, 1.0, 0.6, 1.0, dark_metal)
                 cyl(blast,  "Scope",   ax+1.4, -2.0, WRIST_Z-4.5, 0.40, 3.2, "z", chrome)
 
         # ⑥ BACKPACK
@@ -732,12 +737,12 @@ def run(context):
             ball_joint(f"{side}_Ankle_Cluster",    fo, sn, sx, 0, ANKLE_CTR+2.2)
             ball_joint(f"{side}_Shoulder_Cluster", ua, t,  ax, 0, SHOULDER_CTR)
             revolute_joint(f"{side}_Elbow",        fa, ua, ax, 0, ELBOW_Z,      "x")
-            revolute_joint(f"{side}_Wrist",        ha, fa, ax, 0, WRIST_Z+0.8,  "x")
+            revolute_joint(f"{side}_Wrist",        ha, fa, ax, 0, WRIST_Z+0.8,  "z")
 
             if side == "R":
                 bl = occs.get("OP_Ion_Blaster")
                 if bl:
-                    rigid_joint("Blaster_Grip", bl, ha)
+                    revolute_joint("Blaster_Fold", bl, ha, ax, 0, WRIST_Z-1.0, "y")
 
         # ─── Kinematic Validation ─────────────────────────────────────────
         Logger.log("Validating mechanical linkages...")
@@ -782,7 +787,7 @@ def run(context):
             }
             REV_JOINTS = {
                 "L_Knee", "R_Knee", "L_Elbow", "R_Elbow",
-                "L_Wrist", "R_Wrist",
+                "L_Wrist", "R_Wrist", "Blaster_Fold",
             }
 
             def __init__(self, root, comps_list, design, app, ui):
@@ -1001,8 +1006,8 @@ def run(context):
                 self.move_joint("R_Shoulder_Cluster", 80, steps=15, axis='yaw')
                 self.move_joint("R_Elbow", 90, steps=12, axis='pitch')
                 for _ in range(3):
-                    self.move_joint("R_Wrist", -30, steps=8, axis='pitch')
-                    self.move_joint("R_Wrist", 30, steps=8, axis='pitch')
+                    self.move_joint("R_Wrist", -30, steps=8, axis='roll')
+                    self.move_joint("R_Wrist", 30, steps=8, axis='roll')
                 self.reset_all(steps=12)
 
             # ─── Module 4: Idle Breathing ─────────────────────────────────
@@ -1065,7 +1070,7 @@ def run(context):
                 self.move_joint("R_Shoulder_Cluster", -45, steps=10, axis='pitch')
                 self.move_joint("R_Shoulder_Cluster", 45, steps=8, axis='yaw')
                 self.move_joint("R_Elbow", 120, steps=8, axis='pitch')
-                self.move_joint("R_Wrist", 20, steps=6, axis='pitch')
+                self.move_joint("R_Wrist", 20, steps=6, axis='roll')
                 self.move_joint("R_Shoulder_Cluster", -10, steps=6, axis='pitch')
                 self.move_joint("R_Shoulder_Cluster", -80, steps=10, axis='pitch')
                 self.move_joint("R_Shoulder_Cluster", -30, steps=6, axis='yaw')
@@ -1082,11 +1087,14 @@ def run(context):
                 Logger.log("--- MODULE 8a / 9 ---")
                 Logger.log("MODULE 8a: TRANSFORMATION (Robot→Truck)")
 
-                # Stage 1: Stow wrists and keep elbows completely straight
-                self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("R_Elbow", 0, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 0, steps=18, axis='pitch', clamp=True)
+                # Stage 1: Fold wrists flat (roll 90°), straighten elbows, fold blaster
+                self.move_group([
+                    ("R_Wrist", 90, "roll"),
+                    ("L_Wrist", 90, "roll"),
+                    ("R_Elbow", 0, "pitch"),
+                    ("L_Elbow", 0, "pitch"),
+                    ("Blaster_Fold", -90, "pitch"),
+                ], steps=20)
 
                 # Stage 2: Tuck head (fold completely backward into chest cavity)
                 self.move_ball([("Neck_Cluster", -90, 0, 0)], steps=15)
@@ -1130,10 +1138,13 @@ def run(context):
                     ("R_Shoulder_Cluster", 0, 0, 0),
                 ], steps=22)
                 self.move_ball([("Neck_Cluster", 0, 0, 0)], steps=15)
-                self.move_joint("R_Elbow", 0, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 0, steps=18, axis='pitch', clamp=True)
-                self.move_joint("R_Wrist", 0, steps=15, axis='pitch', clamp=True)
-                self.move_joint("L_Wrist", 0, steps=15, axis='pitch', clamp=True)
+                self.move_group([
+                    ("Blaster_Fold", 0, "pitch"),
+                    ("R_Wrist", 0, "roll"),
+                    ("L_Wrist", 0, "roll"),
+                    ("R_Elbow", 0, "pitch"),
+                    ("L_Elbow", 0, "pitch"),
+                ], steps=18)
                 
                 Logger.log("Robot mode restored.")
                 self.reset_all(steps=10)
@@ -1163,6 +1174,7 @@ def run(context):
             # ─── Robot Mode (reset to default pose and hold) ────────
             def simulate_robot_mode(self):
                 self.reset_all(steps=10)
+                self.move_joint("Blaster_Fold", 0, steps=10, axis='pitch')
                 Logger.log("--- ROBOT MODE ---")
                 Logger.log("ROBOT MODE — holding position.")
                 try:
@@ -1180,11 +1192,14 @@ def run(context):
                 Logger.log("TRANSFORMATION (Robot→Truck) — holding position")
                 self.debug_joints("BEFORE_TRANSFORM")
 
-                # Stage 1: Stow wrists and keep elbows completely straight
-                self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("R_Elbow", 0, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 0, steps=18, axis='pitch', clamp=True)
+                # Stage 1: Fold wrists flat (roll 90°), straighten elbows, fold blaster
+                self.move_group([
+                    ("R_Wrist", 90, "roll"),
+                    ("L_Wrist", 90, "roll"),
+                    ("R_Elbow", 0, "pitch"),
+                    ("L_Elbow", 0, "pitch"),
+                    ("Blaster_Fold", -90, "pitch"),
+                ], steps=20)
                 # Stage 2: Tuck head (fold completely backward into chest cavity)
                 self.move_ball([("Neck_Cluster", -90, 0, 0)], steps=15)
                 # Stage 3: Shoulders fold backward against torso
@@ -1221,9 +1236,10 @@ def run(context):
                 Logger.log("--- BATTLE MODE ---")
                 Logger.log("TRANSFORMATION (Robot→Battle) — holding position")
 
-                # Stage 1: Fold elbows and wrists for combat stance
-                self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
+                # Stage 1: Fold elbows and wrists for combat stance (wrist roll 90° = sideways grip)
+                self.move_joint("Blaster_Fold", 0, steps=10, axis='pitch')
+                self.move_joint("R_Wrist", 90, steps=15, axis='roll', clamp=True)
+                self.move_joint("L_Wrist", 90, steps=15, axis='roll', clamp=True)
                 self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
                 self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
 
