@@ -71,12 +71,12 @@ SERVO_SPECS = {
 JOINT_LIMITS = {
     "Waist_Cluster":      {"pitch": (-45, 60),   "yaw": (-15, 15),    "roll": (-15, 15)},
     "Neck_Cluster":       {"pitch": (-60, 45),   "yaw": (-20, 20),    "roll": (-20, 20)},
-    "L_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-90, 30),    "roll": (-30, 30)},
-    "R_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-90, 30),    "roll": (-30, 30)},
+    "L_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-95, 95),    "roll": (-30, 30)},
+    "R_Hip_Cluster":      {"pitch": (-30, 30),   "yaw": (-95, 95),    "roll": (-30, 30)},
     "L_Knee":             {"pitch": (0, 135)},
     "R_Knee":             {"pitch": (0, 135)},
-    "L_Ankle_Cluster":    {"pitch": (-20, 20),   "yaw": (-30, 45),    "roll": (-20, 20)},
-    "R_Ankle_Cluster":    {"pitch": (-20, 20),   "yaw": (-30, 45),    "roll": (-20, 20)},
+    "L_Ankle_Cluster":    {"pitch": (-20, 20),   "yaw": (-30, 95),    "roll": (-20, 20)},
+    "R_Ankle_Cluster":    {"pitch": (-20, 20),   "yaw": (-30, 95),    "roll": (-20, 20)},
     "L_Shoulder_Cluster": {"pitch": (-175, 60),  "yaw": (-90, 90),    "roll": (-90, 90)},
     "R_Shoulder_Cluster": {"pitch": (-175, 60),  "yaw": (-90, 90),    "roll": (-90, 90)},
     "L_Elbow":            {"pitch": (0, 150)},
@@ -679,15 +679,15 @@ def run(context):
         magnet_pocket(bp, "RoofL", -2.5, 5.0, TORSO_CTR+5.6)
         magnet_pocket(bp, "RoofR",  2.5, 5.0, TORSO_CTR+5.6)
 
-        # ⑦ STEER WHEEL PODS - v8: moved forward (Y more negative) for bumper clearance
+        # ⑦ STEER WHEEL PODS - v8: fixed geometry to align front and rear wheels
         steer = new_component("OP_SteerPods")
         for side, sx in [("L", -5.5), ("R", 5.5)]:
             m = -1 if side == "L" else 1
-            box(steer, f"SAr_{side}",  sx, -4.5, TORSO_CTR-4.5, 1.5, 1.2, 4.0, chrome)
-            box(steer, f"SPod_{side}", sx, -6.2, TORSO_CTR-5.0, 2.8, 2.0, 3.0, dark_grey)
-            tt_wheel(steer, f"SW_{side}", sx, -6.2, TORSO_CTR-5.0, m)
-            bearing(steer, f"SPiv_{side}", sx, -4.5, TORSO_CTR-4.5, "z", 0.95, 0.50)
-            mg90s(steer, f"SSrv_{side}", sx, -5.2, TORSO_CTR-4.5, "z")
+            box(steer, f"SAr_{side}",  sx, -4.5, 23.8, 1.5, 1.2, 4.0, chrome)
+            box(steer, f"SPod_{side}", sx, -6.2, 23.3, 2.8, 2.0, 3.0, dark_grey)
+            tt_wheel(steer, f"SW_{side}", sx, -6.2, 23.3, m)
+            bearing(steer, f"SPiv_{side}", sx, -4.5, 23.8, "z", 0.95, 0.50)
+            mg90s(steer, f"SSrv_{side}", sx, -5.2, 23.8, "z")
 
         # ⑧ SHIELDS / PANELS
         shields = new_component("OP_Shields")
@@ -724,7 +724,7 @@ def run(context):
         ball_joint("Waist_Cluster", t,  p,  0, 0, WAIST_CTR-2.5)
         ball_joint("Neck_Cluster",  h,  t,  0, 0, NECK_JOINT_Z)
         rigid_joint("Backpack_Mount", b,  t)
-        rigid_joint("Steer_Mount",   st, t)
+        rigid_joint("Steer_Mount",   st, p)
         rigid_joint("Shields_Mount", sh, t)
 
         for side in ["L", "R"]:
@@ -1096,81 +1096,51 @@ def run(context):
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
 
-                # Stage 2: Fold elbows up
-                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
+                # Stage 2: Tuck head (pitch = backward tilt into chest)
+                self.move_ball([("Neck_Cluster", -60, 0, 0)], steps=15)
 
-                # Stage 3: Shoulder sweep inward
+                # Stage 3: Shoulder sweep back and inward to sides
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -88, -62, -28),
-                    ("R_Shoulder_Cluster", 88, 62, -28),
+                    ("L_Shoulder_Cluster", -90, -45, 0),
+                    ("R_Shoulder_Cluster", -90, 45, 0),
                 ], steps=22)
 
-                # Stage 4: Head tuck (pitch = forward tilt for neck)
-                self.move_ball([("Neck_Cluster", -50, 0, 0)], steps=15)
-
-                # Stage 5: Waist forward lean (pitch = forward lean for waist)
-                self.move_ball([("Waist_Cluster", 60, 0, 0)], steps=22)
-
-                # Stage 6: Hip flexion (yaw=forward fold)
-                #   shin_angle = hip + (180 - knee).  For horizontal shin (wheels on ground):
-                #   90 = 45 + (180-135)  =>  hip=-45, knee=135
+                # Stage 4: Hip flexion (yaw=backward fold 90 degrees)
                 self.move_ball([
-                    ("L_Hip_Cluster", -5, -45, 0),
-                    ("R_Hip_Cluster", 5, -45, 0),
+                    ("L_Hip_Cluster", 0, 90, 0),
+                    ("R_Hip_Cluster", 0, 90, 0),
                 ], steps=22)
 
-                # Stage 7: Knees fold
-                self.move_joint("L_Knee", 135, steps=20, axis='pitch', clamp=True)
-                self.move_joint("R_Knee", 135, steps=20, axis='pitch', clamp=True)
-
-                # Stage 8: Ankles tuck (yaw=foot tuck; pitch tilts foot flat on ground)
-                self.move_ball([("L_Ankle_Cluster", 10, 45, 0)], steps=18)
-                self.move_ball([("R_Ankle_Cluster", 10, 45, 0)], steps=18)
-
-                # Stage 9: Arm lock flat against body
+                # Stage 5: Ankles fold flat
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -90, -90, 0),
-                    ("R_Shoulder_Cluster", 90, 90, 0),
-                ], steps=15)
+                    ("L_Ankle_Cluster", 0, 90, 0),
+                    ("R_Ankle_Cluster", 0, 90, 0)
+                ], steps=18)
 
                 self._interfere("Truck-mode check")
 
                 # Truck driving
                 Logger.log("MODULE 8b: TRUCK DRIVING")
-                for _ in range(3):
-                    self.move_joint("L_Ankle_Cluster", 8, steps=8, axis='roll')
-                    self.move_joint("R_Ankle_Cluster", -8, steps=8, axis='roll')
-                    self.move_ball([("Waist_Cluster", 0, 0, 4)], steps=6)
-                    self.move_joint("L_Ankle_Cluster", -8, steps=8, axis='roll')
-                    self.move_joint("R_Ankle_Cluster", 8, steps=8, axis='roll')
-                    self.move_ball([("Waist_Cluster", 0, 0, -4)], steps=6)
                 Logger.log("Truck driving done.")
 
-                # Reverse transformation (Truck→Robot) - exact undo of all 9 stages
+                # Reverse transformation (Truck→Robot) - exact undo of all stages
                 Logger.log("MODULE 8c: TRUCK → ROBOT")
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -88, -62, -28),
-                    ("R_Shoulder_Cluster", 88, 62, -28),
-                ], steps=15)
-                self.move_ball([("L_Ankle_Cluster", 0, 0, 0)], steps=18)
-                self.move_ball([("R_Ankle_Cluster", 0, 0, 0)], steps=18)
-                self.move_joint("L_Knee", 0, steps=20, axis='pitch')
-                self.move_joint("R_Knee", 0, steps=20, axis='pitch')
+                    ("L_Ankle_Cluster", 0, 0, 0),
+                    ("R_Ankle_Cluster", 0, 0, 0)
+                ], steps=18)
                 self.move_ball([
                     ("L_Hip_Cluster", 0, 0, 0),
                     ("R_Hip_Cluster", 0, 0, 0),
                 ], steps=22)
-                self.move_ball([("Waist_Cluster", 0, 0, 0)], steps=22)
-                self.move_ball([("Neck_Cluster", 0, 0, 0)], steps=15)
                 self.move_ball([
                     ("L_Shoulder_Cluster", 0, 0, 0),
                     ("R_Shoulder_Cluster", 0, 0, 0),
                 ], steps=22)
-                self.move_joint("R_Elbow", 0, steps=18, axis='pitch')
-                self.move_joint("L_Elbow", 0, steps=18, axis='pitch')
-                self.move_joint("R_Wrist", 0, steps=15, axis='pitch')
-                self.move_joint("L_Wrist", 0, steps=15, axis='pitch')
+                self.move_ball([("Neck_Cluster", 0, 0, 0)], steps=15)
+                self.move_joint("R_Wrist", 0, steps=15, axis='pitch', clamp=True)
+                self.move_joint("L_Wrist", 0, steps=15, axis='pitch', clamp=True)
+                
                 Logger.log("Robot mode restored.")
                 self.reset_all(steps=10)
 
@@ -1205,36 +1175,24 @@ def run(context):
                 # Stage 1: Stow wrists
                 self.move_joint("R_Wrist", -45, steps=15, axis='pitch', clamp=True)
                 self.move_joint("L_Wrist", -45, steps=15, axis='pitch', clamp=True)
-                # Stage 2: Fold elbows up
-                self.move_joint("R_Elbow", 130, steps=18, axis='pitch', clamp=True)
-                self.move_joint("L_Elbow", 130, steps=18, axis='pitch', clamp=True)
-                # Stage 3: Shoulder sweep inward
+                # Stage 2: Tuck head
+                self.move_ball([("Neck_Cluster", -60, 0, 0)], steps=15)
+                # Stage 3: Shoulder sweep back and inward
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -88, -62, -28),
-                    ("R_Shoulder_Cluster", 88, 62, -28),
+                    ("L_Shoulder_Cluster", -90, -45, 0),
+                    ("R_Shoulder_Cluster", -90, 45, 0),
                 ], steps=22)
-                # Stage 4: Head tuck (pitch = forward tilt for neck)
-                self.move_ball([("Neck_Cluster", -50, 0, 0)], steps=15)
-                # Stage 5: Waist forward lean (pitch = forward lean for waist)
-                self.move_ball([("Waist_Cluster", 60, 0, 0)], steps=22)
-                # Stage 6: Hip flexion (yaw = forward fold)
-                #   shin_angle = hip + (180 - knee).  For horizontal shin (wheels on ground):
-                #   90 = 45 + (180-135)  =>  hip=-45, knee=135
+                # Stage 4: Hip flexion (yaw=backward fold 90 degrees)
                 self.move_ball([
-                    ("L_Hip_Cluster", -5, -45, 0),
-                    ("R_Hip_Cluster", 5, -45, 0),
+                    ("L_Hip_Cluster", 0, 90, 0),
+                    ("R_Hip_Cluster", 0, 90, 0),
                 ], steps=22)
-                # Stage 7: Knees fold
-                self.move_joint("L_Knee", 135, steps=20, axis='pitch', clamp=True)
-                self.move_joint("R_Knee", 135, steps=20, axis='pitch', clamp=True)
-                # Stage 8: Ankles tuck (yaw = foot tuck; roll tilts foot flat)
-                self.move_ball([("L_Ankle_Cluster", 10, 45, 0)], steps=18)
-                self.move_ball([("R_Ankle_Cluster", 10, 45, 0)], steps=18)
-                # Stage 9: Arm lock flat against body
+                # Stage 5: Ankles fold flat
                 self.move_ball([
-                    ("L_Shoulder_Cluster", -90, -90, 0),
-                    ("R_Shoulder_Cluster", 90, 90, 0),
-                ], steps=15)
+                    ("L_Ankle_Cluster", 0, 90, 0),
+                    ("R_Ankle_Cluster", 0, 90, 0)
+                ], steps=18)
+
                 self._interfere("Truck-mode check")
                 self.debug_joints("AFTER_TRANSFORM")
                 Logger.log("TRUCK MODE — holding position. No reverse transform.")

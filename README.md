@@ -223,3 +223,8 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
     <a href="https://github.com/itsPremkumar/Optimus_Prime">GitHub</a>
   </sub>
 </div>
+
+
+
+
+uv run src/run_simulation.py --module truck --capture
