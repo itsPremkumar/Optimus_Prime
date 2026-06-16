@@ -935,7 +935,21 @@ def run(context):
 
             def _interfere(self, label="Interference", vol_min=0.015):
                 try:
-                    results = self._app.measureManager.measureInterference(self._app.activeProduct)
+                    prod = self._app.activeProduct
+                    if not prod:
+                        Logger.log(f"  {label}: no active product", "WARN")
+                        self._cols.append((label, -1))
+                        return
+                    results = None
+                    try:
+                        results = self._app.measureManager.measureInterference(prod)
+                    except Exception:
+                        try:
+                            results = self._design.measureInterference(prod)
+                        except Exception:
+                            results = adsk.fusion.Design.cast(prod).measureInterference(prod)
+                    if results is None:
+                        raise Exception("all API approaches failed")
                     if results:
                         count = results.count
                         Logger.log(f"  {label}: {count} collision(s)")
@@ -950,8 +964,8 @@ def run(context):
                     else:
                         Logger.log(f"  {label}: ✅ 0 collisions")
                         self._cols.append((label, 0))
-                except Exception:
-                    Logger.log(f"  {label}: ⚠ interference check failed", "WARN")
+                except Exception as e:
+                    Logger.log(f"  {label}: ⚠ check skipped ({e})", "WARN")
                     self._cols.append((label, -1))
 
             # ─── Module 1: Joint ROM Test ─────────────────────────────────
@@ -1030,8 +1044,8 @@ def run(context):
                     l_sign = 1 if phase == 0 else -1
                     r_sign = -1 if phase == 0 else 1
                     self.move_ball([
-                        ("L_Hip_Cluster",      40*l_sign,  20*l_sign, 10*l_sign),
-                        ("R_Hip_Cluster",      40*r_sign,  20*r_sign, 10*r_sign),
+                        ("L_Hip_Cluster",      30*l_sign,  20*l_sign, 10*l_sign),
+                        ("R_Hip_Cluster",      30*r_sign,  20*r_sign, 10*r_sign),
                         ("L_Shoulder_Cluster", 15*l_sign,  25*l_sign, 10*l_sign),
                         ("R_Shoulder_Cluster", 15*r_sign,  25*r_sign, 10*r_sign),
                         ("L_Knee",             95, None, None),
@@ -1152,7 +1166,7 @@ def run(context):
                 poses = {
                     "Attention": {"Waist_Cluster": (0, 0, 0), "Knee": 0, "Elbow": 0},
                     "Combat": {"Waist_Cluster": (10, 0, 0), "Knee": 45, "Elbow": 90,
-                               "Shoulder_Cluster_R": (-45, 30, 0)},
+                               "R_Shoulder_Cluster": (-45, 30, 0)},
                     "Squat": {"Waist_Cluster": (20, 0, 0), "Knee": 90, "Hip_Cluster": (-45, 0, 0)},
                     "Victory": {"Shoulder_Cluster": (-90, 60, 0), "Elbow": 30, "Waist_Cluster": (15, 0, 0)},
                 }
@@ -1161,7 +1175,13 @@ def run(context):
                     for key, val in config.items():
                         if isinstance(val, tuple):
                             if "Cluster" in key:
-                                self.move_ball([(key, val[0], val[1], val[2])], steps=15)
+                                if key.startswith(("L_", "R_")):
+                                    self.move_ball([(key, val[0], val[1], val[2])], steps=15)
+                                elif "Hip" in key or "Shoulder" in key:
+                                    self.move_ball([(f"L_{key}", val[0], val[1], val[2])], steps=15)
+                                    self.move_ball([(f"R_{key}", val[0], val[1], val[2])], steps=15)
+                                else:
+                                    self.move_ball([(key, val[0], val[1], val[2])], steps=15)
                         elif "Knee" in key:
                             self.move_joint(f"L_{key}", val, steps=12, axis='pitch')
                             self.move_joint(f"R_{key}", val, steps=12, axis='pitch')
@@ -1169,15 +1189,19 @@ def run(context):
                             self.move_joint(f"L_{key}", val, steps=10, axis='pitch')
                             self.move_joint(f"R_{key}", val, steps=10, axis='pitch')
                     try:
-                        props = self._app.measureManager.measurePhysicalProperties(
-                            self._app.activeProduct)
+                        try:
+                            props = self._app.measureManager.measurePhysicalProperties(
+                                self._app.activeProduct)
+                        except Exception:
+                            props = self._design.measurePhysicalProperties(
+                                self._app.activeProduct)
                         com = props.centerOfMass
                         stable = abs(com.x) < 3.0 and abs(com.y) < 5.0
-                        label = "✅ STABLE" if stable else "❌ UNSTABLE"
-                        Logger.log(f"  {pose_name:<16} {label}  "
+                        stable_label = "✅ STABLE" if stable else "❌ UNSTABLE"
+                        Logger.log(f"  {pose_name:<16} {stable_label}  "
                                    f"CoM=({com.x:.1f}, {com.y:.1f}, {com.z:.1f})")
                     except Exception:
-                        Logger.log(f"  {pose_name:<16} ⚠ CoM check unavailable", "WARN")
+                        Logger.log(f"  {pose_name:<16} ⚠ CoM unavailable (unsaved doc)", "WARN")
 
             def estimate_servo_loads(self):
                 Logger.log("MODULE 9b: SERVO LOAD ESTIMATION")
