@@ -678,11 +678,11 @@ def run(context):
         steer = new_component("OP_SteerPods")
         for side, sx in [("L", -5.5), ("R", 5.5)]:
             m = -1 if side == "L" else 1
-            box(steer, f"SAr_{side}",  sx, -4.5, 23.8, 1.5, 1.2, 4.0, chrome)
-            box(steer, f"SPod_{side}", sx, -6.2, 23.3, 2.8, 2.0, 3.0, dark_grey)
-            tt_wheel(steer, f"SW_{side}", sx, -6.2, 23.3, m)
-            bearing(steer, f"SPiv_{side}", sx, -4.5, 23.8, "z", 0.95, 0.50)
-            mg90s(steer, f"SSrv_{side}", sx, -5.2, 23.8, "z")
+            box(steer, f"SAr_{side}",  sx, -3.5, 23.8, 1.5, 1.2, 4.0, chrome)
+            box(steer, f"SPod_{side}", sx, -4.5, 23.3, 2.8, 2.0, 3.0, dark_grey)
+            tt_wheel(steer, f"SW_{side}", sx+m*2.0, -4.0, 23.3, m)
+            bearing(steer, f"SPiv_{side}", sx, -3.5, 23.8, "z", 0.95, 0.50)
+            mg90s(steer, f"SSrv_{side}", sx, -4.0, 23.8, "z")
 
         # ⑧ SHIELDS / PANELS
         shields = new_component("OP_Shields")
