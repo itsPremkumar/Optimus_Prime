@@ -1,5 +1,5 @@
 # ═════════════════════════════════════════════════════════════════════════════
-#  Optimus Prime G1 — Autodesk Fusion 360 Script  v8.1 (bug-fixed)
+#  Optimus Prime G1 — Autodesk Fusion 360 Script  v9 (bug-fixed)
 #
 #  BUG-FIX CHANGELOG (9 bugs corrected from v8.0)
 #  ──────────────────────────────────────────────────────────────────────────
@@ -187,7 +187,7 @@ def run(context):
     ui  = None
 
     Logger.log("=" * 60)
-    Logger.log("EXECUTION START  v8.1 — Optimus Prime G1 (bug-fixed)")
+    Logger.log("EXECUTION START  v9 — Optimus Prime G1 (bug-fixed)")
     Logger.log("=" * 60)
 
     try:
@@ -857,12 +857,12 @@ def run(context):
             pass
 
         # ═════════════════════════════════════════════════════════════════
-        #  SIMULATION ENGINE v8.1
+        #  SIMULATION ENGINE v9
         # ═════════════════════════════════════════════════════════════════
 
         class SimulationEngine:
             """
-            9-module simulation suite for Optimus Prime G1 v8.1 (bug-fixed).
+            9-module simulation suite for Optimus Prime G1 v9 (bug-fixed).
             All transformation angles validated against JOINT_LIMITS.
             """
 
