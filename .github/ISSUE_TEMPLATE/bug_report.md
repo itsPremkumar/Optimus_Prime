@@ -18,7 +18,7 @@ Steps to reproduce the behavior:
 A clear description of what you expected to happen.
 
 **Log output**
-Paste the relevant section from `C:\opt_fusion_log.txt`:
+Paste the relevant section from `output/logs/optimus_fusion_log_*.txt`:
 
 ```
 ...
@@ -28,6 +28,7 @@ Paste the relevant section from `C:\opt_fusion_log.txt`:
 - Python version: [e.g. 3.10]
 - Fusion 360 version: [e.g. 2.0.18000]
 - OS: [e.g. Windows 11]
+- MCP server running: [Yes/No]
 
 **Additional context**
 Add any other context about the problem here.

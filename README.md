@@ -2,14 +2,23 @@
   ============================================================
   OPTIMUS PRIME G1 — Fusion 360 Simulation Engine
   Description: Open-source Python script that builds a 3D-printable
-    Optimus Prime G1 robot in Autodesk Fusion 360 and runs 9
-    kinematic simulation modules via MCP protocol.
-  Keywords: Optimus Prime, Transformers, Fusion 360, MCP, 3D printing,
-    robotics simulation, G1, kinematic simulation, Python, CAD,
-    STL export, URDF, Model Context Protocol, FDM printing
+    Optimus Prime G1 robot in Autodesk Fusion 360 with 24 servos,
+    18 joints, 6 TT motors, and 9 kinematic simulation modules
+    via MCP protocol. Includes robot-to-truck transformation,
+    STL/STEP/URDF export, and FDM-printable hardware integration.
+  Keywords: Optimus Prime, Transformers G1, Fusion 360, MCP server,
+    3D printing, robotics simulation, kinematic simulation, Python CAD,
+    STL export, STEP export, URDF export, servo robot, MG996R, MG90S,
+    Model Context Protocol, FDM printing, robot transformation,
+    Autodesk Fusion, open source robot, 3D printable robot,
+    AI embodiment, physical AI, robot kinematics
   Author: itsPremkumar
   Repository: https://github.com/itsPremkumar/Optimus_Prime
+  GitHub Topics: optimus-prime, transformers, fusion-360, 3d-printing,
+    robotics, kinematic-simulation, cad, python, stl-export, urdf,
+    servo-motors, mcp, fdm-printing, robot, autodesk
   License: MIT
+  Twitter: @itsPremkumar
   ============================================================
 -->
 

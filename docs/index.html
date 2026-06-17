@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Open-source Optimus Prime G1 Fusion 360 simulation engine. Build a 3D-printable Transformers robot with 24 servos, 9 kinematic modules, robot-to-truck transformation, and STEP/STL/URDF export.">
+  <meta name="keywords" content="Optimus Prime, Transformers, Fusion 360, MCP, 3D printing, robot simulation, G1, kinematic simulation, Python, CAD, STL export, URDF, servo motors, robotics">
+  <meta name="author" content="itsPremkumar">
+  <meta name="robots" content="index, follow">
+  <meta property="og:title" content="Optimus Prime G1 - Fusion 360 Simulation Engine">
+  <meta property="og:description" content="Build a 3D-printable Optimus Prime G1 robot in Fusion 360 with 24 servos, 9 kinematic simulations, and full robot-to-truck transformation.">
+  <meta property="og:image" content="https://itsPremkumar.github.io/Optimus_Prime/images/optimus_robot_Iso.png">
+  <meta property="og:url" content="https://github.com/itsPremkumar/Optimus_Prime">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Optimus Prime G1 - Fusion 360 Simulation Engine">
+  <meta name="twitter:description" content="3D-printable Optimus Prime G1 robot with full kinematic simulation and robot-to-truck transformation.">
+  <meta name="twitter:image" content="https://itsPremkumar.github.io/Optimus_Prime/images/optimus_robot_Iso.png">
+  <title>Optimus Prime G1 - Fusion 360 Simulation Engine | 3D-Printable Transformer Robot</title>
+  <link rel="canonical" href="https://github.com/itsPremkumar/Optimus_Prime">
+  <link rel="sitemap" type="application/xml" href="sitemap.xml">
+  <style>
+    :root {
+      --red: #cc3333;
+      --blue: #2244aa;
+      --chrome: #c0c0c0;
+      --dark: #1a1a2e;
+      --bg: #0f0f1a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+    .hero {
+      background: linear-gradient(135deg, var(--dark) 0%, #16213e 50%, #0f3460 100%);
+      padding: 80px 20px;
+      text-align: center;
+      border-bottom: 4px solid var(--red);
+    }
+    .hero h1 {
+      font-size: 3em;
+      background: linear-gradient(135deg, var(--red), #ff6b6b, var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 15px;
+    }
+    .hero p { font-size: 1.2em; max-width: 700px; margin: 0 auto; color: #aaa; }
+    .badges { margin: 20px 0; }
+    .badges img { margin: 3px; height: 24px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+    .screenshots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 30px 0; }
+    .screenshots img { width: 100%; border-radius: 8px; border: 2px solid #333; transition: transform .2s; }
+    .screenshots img:hover { transform: scale(1.02); }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin: 40px 0; }
+    .card {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 25px;
+      border: 1px solid #333;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: var(--red); }
+    .card h3 { color: var(--red); margin-bottom: 10px; font-size: 1.3em; }
+    .card .emoji { font-size: 2em; margin-bottom: 10px; display: block; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 30px 0; text-align: center; }
+    .stat { background: #1a1a2e; padding: 20px; border-radius: 10px; border: 1px solid #333; }
+    .stat .num { font-size: 2em; font-weight: bold; color: var(--red); }
+    .stat .label { font-size: 0.9em; color: #888; margin-top: 5px; }
+    .cta {
+      text-align: center;
+      padding: 50px 20px;
+      background: linear-gradient(135deg, var(--dark), #0f3460);
+      border-radius: 16px;
+      margin: 40px 0;
+    }
+    .cta h2 { color: #fff; margin-bottom: 15px; }
+    .cta p { color: #aaa; margin-bottom: 25px; }
+    .btn {
+      display: inline-block;
+      padding: 14px 36px;
+      background: var(--red);
+      color: #fff;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1.1em;
+      transition: background .2s;
+    }
+    .btn:hover { background: #aa2222; }
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--blue);
+      margin-left: 15px;
+    }
+    .btn-outline:hover { background: var(--blue); }
+    .video-section { margin: 40px 0; }
+    .video-section video, .video-section img { width: 100%; border-radius: 12px; border: 2px solid #333; }
+    footer {
+      text-align: center;
+      padding: 30px;
+      color: #666;
+      border-top: 1px solid #222;
+      margin-top: 40px;
+    }
+    footer a { color: var(--red); text-decoration: none; }
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2em; }
+      .screenshots { grid-template-columns: repeat(2, 1fr); }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .btn-outline { margin-left: 0; margin-top: 10px; }
+    }
+    @media (max-width: 480px) {
+      .screenshots { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr; }
+    }
+    pre {
+      background: #111;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      border: 1px solid #333;
+      margin: 15px 0;
+    }
+    code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.9em; }
+    table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
+    th { background: #1a1a2e; color: var(--red); }
+    h2 { color: var(--blue); margin: 30px 0 15px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    h3 { color: #ddd; margin: 20px 0 10px; }
+    a { color: #6699ff; }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <h1>Optimus Prime G1</h1>
+    <p>Full Simulation Engine v9.0 — Build a 3D-printable, servo-driven Optimus Prime robot in Autodesk Fusion 360 with 9 kinematic simulation modules.</p>
+    <div class="badges">
+      <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
+      <img src="https://img.shields.io/badge/Python-3.8%2B-blue" alt="Python 3.8+">
+      <img src="https://img.shields.io/badge/Fusion%20360-MCP-orange" alt="Fusion 360 MCP">
+      <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome">
+      <img src="https://img.shields.io/github/stars/itsPremkumar/Optimus_Prime?style=social" alt="GitHub Stars">
+    </div>
+    <div style="margin-top: 25px;">
+      <a href="https://github.com/itsPremkumar/Optimus_Prime" class="btn">View on GitHub</a>
+      <a href="docs/installation" class="btn btn-outline">Get Started</a>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <div class="stats">
+      <div class="stat"><div class="num">24</div><div class="label">Servo Motors</div></div>
+      <div class="stat"><div class="num">18</div><div class="label">Articulated Joints</div></div>
+      <div class="stat"><div class="num">9</div><div class="label">Simulation Modules</div></div>
+      <div class="stat"><div class="num">140+</div><div class="label">3D Bodies</div></div>
+    </div>
+
+    <div class="screenshots">
+      <img src="../images/optimus_robot_Front.png" alt="Optimus Prime G1 Robot Mode Front View - 3D printable Transformers robot" loading="lazy">
+      <img src="../images/optimus_robot_Left.png" alt="Optimus Prime G1 Robot Mode Left View - Servo-driven kinematic robot" loading="lazy">
+      <img src="../images/optimus_robot_Iso.png" alt="Optimus Prime G1 Robot Mode Isometric View - Fusion 360 CAD model" loading="lazy">
+      <img src="../images/optimus_truck_Front.png" alt="Optimus Prime G1 Truck Mode Front View - Robot to truck transformation" loading="lazy">
+      <img src="../images/optimus_truck_Left.png" alt="Optimus Prime G1 Truck Mode Left View - TT motor wheel assembly" loading="lazy">
+      <img src="../images/optimus_truck_Iso.png" alt="Optimus Prime G1 Truck Mode Isometric View - Complete transformation" loading="lazy">
+    </div>
+
+    <h2>What Is This?</h2>
+    <p>An open-source <strong>Autodesk Fusion 360 simulation suite</strong> that programmatically builds a fully-articulated, <strong>3D-printable Optimus Prime G1</strong> robot and runs a <strong>9-module kinematic simulation</strong> — all driven remotely via the <strong>Model Context Protocol (MCP)</strong>.</p>
+    <p>This project brings the legendary Autobots leader from the <strong>Transformers</strong> franchise to life — from the 1984 <strong>Generation 1</strong> animated series — as the <strong>first fully working 3D-printable CAD model</strong> of Optimus Prime with complete <strong>servo-driven kinematic simulation</strong>, <strong>robot-to-truck transformation</strong>, and <strong>FDM-printable hardware integration</strong>.</p>
+
+    <div class="video-section">
+      <h2>See It In Action</h2>
+      <img src="../videos/Optimus_Prime_Transformation.gif" alt="Optimus Prime G1 Robot to Truck Transformation Animation - Fusion 360 Simulation" loading="lazy">
+    </div>
+
+    <h2>Features</h2>
+    <div class="features">
+      <div class="card">
+        <span class="emoji">🤖</span>
+        <h3>Full 3D Model</h3>
+        <p>140+ bodies across 19 assemblies — torso, head, pelvis, arms, legs, backpack, ion blaster, and more. Every component modelled with real hardware integration.</p>
+      </div>
+      <div class="card">
+        <span class="emoji">⚡</span>
+        <h3>24 Servo Motors</h3>
+        <p>18× MG996R (9.4 kg·cm) + 6× MG90S (1.8 kg·cm) with exact cavities, mounting brackets, and wire channels pre-cut.</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🔄</span>
+        <h3>Robot ↔ Truck Transformation</h3>
+        <p>Full 9-stage transformation sequence with interference checking. Animate robot-to-truck-to-robot seamlessly.</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🎮</span>
+        <h3>9 Simulation Modules</h3>
+        <p>ROM test, head scan, wave, breathing, walking, running, combat, transformation, stability analysis — all with collision detection.</p>
+      </div>
+      <div class="card">
+        <span class="emoji">🖨️</span>
+        <h3>3D-Printable</h3>
+        <p>0.60 mm FDM clearance, Y-axis midplane splitting, M3 screw holes, Ø6.4 mm magnet pockets, and cable routing channels pre-integrated.</p>
+      </div>
+      <div class="card">
+        <span class="emoji">📦</span>
+        <h3>Multi-Format Export</h3>
+        <p>Export to STL (3D printing), STEP (CAD/CAM), URDF (ROS/Gazebo), and F3D (Fusion 360 archive).</p>
+      </div>
+    </div>
+
+    <div class="cta">
+      <h2>Ready to Build Your Own Optimus Prime?</h2>
+      <p>Clone the repository, enable MCP in Fusion 360, and run the simulation in 2 minutes.</p>
+      <pre><code>git clone https://github.com/itsPremkumar/Optimus_Prime.git
+cd Optimus_Prime
+python src/run_simulation.py --module robot --capture</code></pre>
+      <a href="https://github.com/itsPremkumar/Optimus_Prime" class="btn">⭐ Star on GitHub</a>
+      <a href="docs/installation" class="btn btn-outline">📖 Read the Docs</a>
+    </div>
+
+    <h2>Technical Specifications</h2>
+    <table>
+      <tr><th>Component</th><th>Quantity</th><th>Details</th></tr>
+      <tr><td>Servo Motors</td><td>24</td><td>18× MG996R + 6× MG90S</td></tr>
+      <tr><td>TT Gear Motors</td><td>6</td><td>Yellow gearbox + rubber tire wheel assemblies</td></tr>
+      <tr><td>Bearings</td><td>23</td><td>5 sizes (ro 0.80–1.30)</td></tr>
+      <tr><td>Joints</td><td>18</td><td>10 ball (3-DOF) + 5 revolute (1-DOF) + 3 rigid (0-DOF)</td></tr>
+      <tr><td>Screw Holes (M3)</td><td>16</td><td>Pre-cut in torso, thighs, shins, arms</td></tr>
+      <tr><td>Magnet Pockets</td><td>12</td><td>Ø6.4 × 3.5 mm — snap-fit assembly</td></tr>
+      <tr><td>Wire Channels</td><td>9</td><td>Spine (ø12 mm), legs (ø10 mm), arms (ø8 mm)</td></tr>
+      <tr><td>Total Bodies</td><td>140+</td><td>19 top-level assemblies</td></tr>
+    </table>
+
+    <h2>Documentation</h2>
+    <ul>
+      <li><a href="docs/installation">Installation &amp; Setup</a> — Fusion 360 MCP configuration</li>
+      <li><a href="docs/configuration">Configuration Guide</a> — All constants, flags, and dimensions</li>
+      <li><a href="docs/usage">Usage Guide</a> — CLI commands and example workflows</li>
+      <li><a href="docs/architecture">Architecture Overview</a> — Code structure and MCP communication flow</li>
+      <li><a href="docs/simulation">Simulation Modules</a> — All 9 modules with joint angles</li>
+      <li><a href="docs/troubleshooting">Troubleshooting</a> — Common issues and solutions</li>
+      <li><a href="docs/development">Developer Guide</a> — Adding new parts, joints, and modules</li>
+    </ul>
+
+    <h2>Inspired By</h2>
+    <p>This project is inspired by <strong>Optimus Prime</strong>, the iconic leader of the Autobots from the <strong>Transformers</strong> franchise created by Hasbro/Takara in 1984. The G1 design from the original animated series and the live-action movies serves as the aesthetic foundation for this <strong>first fully working 3D-printable CAD model</strong>.</p>
+
+    <h2>License</h2>
+    <p>MIT — see <a href="LICENSE">LICENSE</a> for details.</p>
+
+  </div>
+
+  <footer>
+    <p>Built with Python &middot; Powered by Autodesk Fusion 360 &middot; Made by <a href="https://github.com/itsPremkumar">itsPremkumar</a></p>
+    <p style="margin-top: 10px; font-size: 0.85em;">
+      Optimus Prime G1 — Fusion 360 Simulation Engine | 
+      <a href="https://github.com/itsPremkumar/Optimus_Prime">GitHub</a> | 
+      <a href="sitemap.xml">Sitemap</a>
+    </p>
+  </footer>
+</body>
+</html>

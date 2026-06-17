@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://itsPremkumar.github.io/Optimus_Prime/sitemap.xml

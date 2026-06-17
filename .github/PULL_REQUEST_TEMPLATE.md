@@ -13,9 +13,10 @@ Fixes # (issue)
 
 ## Testing
 
-- [ ] Ran `python run_simulation.py --module <affected_module>`
+- [ ] Ran `python src/run_simulation.py --module <affected_module>`
 - [ ] Verified no regressions in other modules
-- [ ] Checked `C:\opt_fusion_log.txt` for errors
+- [ ] Checked `output/logs/` for errors
+- [ ] Screenshots/captures verified (if applicable)
 
 ## Checklist
 
