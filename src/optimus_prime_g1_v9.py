@@ -1042,21 +1042,20 @@ def run(context):
 
                     if count:
                         Logger.log(f"  {label}: {count} collision(s)")
-                        for i in range(min(count, 5)):
-                            r = results.item(i)
-                            Logger.log(
-                                f"    [{r.entityOne.name}] <-> [{r.entityTwo.name}] "
-                                f"XYZ:({r.intersectionCenter.x:.2f},"
-                                f"{r.intersectionCenter.y:.2f},"
-                                f"{r.intersectionCenter.z:.2f}) cm")
-                        if count > 5:
-                            Logger.log(f"    ...{count-5} more -- see log")
+                        try:
+                            for i in range(min(count, 5)):
+                                r = results.item(i)
+                                Logger.log(
+                                    f"    [{r.entityOne.name}] <-> [{r.entityTwo.name}]")
+                            if count > 5:
+                                Logger.log(f"    ...{count-5} more -- see log")
+                        except Exception:
+                            pass
                     else:
                         Logger.log(f"  {label}: [OK] 0 collisions")
                     self._cols.append((label, count))
 
                 except Exception as primary_err:
-                    # ── Fallback: graceful skip ───────────────────────────
                     Logger.log(
                         f"  {label}: interference check skipped ({primary_err})", "WARN")
                     self._cols.append((label, -1))
