@@ -34,6 +34,16 @@ An open-source **Autodesk Fusion 360 simulation suite** that programmatically bu
 |-------|-----|-----------|
 | ![Right](images/optimus_truck_Right.png) | ![Top](images/optimus_truck_Top.png) | ![Isometric](images/optimus_truck_Iso.png) |
 
+### Robot Mode — Multi-Angle Renders
+
+| Front | Back | Left |
+|-------|------|------|
+| ![Front](images/optimus_robot_Front.png) | ![Back](images/optimus_robot_Back.png) | ![Left](images/optimus_robot_Left.png) |
+
+| Right | Top | Isometric |
+|-------|-----|-----------|
+| ![Right](images/optimus_robot_Right.png) | ![Top](images/optimus_robot_Top.png) | ![Isometric](images/optimus_robot_Iso.png) |
+
 ---
 
 ## What Is This?
