@@ -168,7 +168,6 @@ def close_all_documents():
 import adsk.core, adsk.fusion
 
 app = adsk.core.Application.get()
-ui = app.userInterface
 docs = app.documents
 # Close all documents – iterate in reverse because closing modifies the collection
 for i in range(docs.count - 1, -1, -1):
@@ -180,7 +179,6 @@ for i in range(docs.count - 1, -1, -1):
 # If no documents left, Fusion will exit; we'll create a new empty design.
 if docs.count == 0:
     docs.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
-ui.messageBox('All documents closed.')
 """
     resp = call_tool("fusion_mcp_execute", {
         "featureType": "script",

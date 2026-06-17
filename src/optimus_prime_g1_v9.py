@@ -319,10 +319,16 @@ def run(context):
         # ─────────────────────────────────────────────────────────────────
 
         def _make_joint_geometry(cx, cy, cz):
-            sketch = root.sketches.add(root.xYConstructionPlane)
-            sketch.isVisible = False
-            s_pt = sketch.sketchPoints.add(adsk.core.Point3D.create(cx, cy, cz))
-            return adsk.fusion.JointGeometry.createByPoint(s_pt)
+            # old version
+            # sketch = root.sketches.add(root.xYConstructionPlane)
+            # sketch.isVisible = False
+            # s_pt = sketch.sketchPoints.add(adsk.core.Point3D.create(cx, cy, cz))
+            # return adsk.fusion.JointGeometry.createByPoint(s_pt)
+            cpi = root.constructionPoints.createInput()
+            cpi.setByPoint(adsk.core.Point3D.create(cx, cy, cz))
+            cp = root.constructionPoints.add(cpi)
+            cp.isLightBulbOn = False
+            return adsk.fusion.JointGeometry.createByPoint(cp)
 
         def revolute_joint(name, occ1, occ2, cx, cy, cz, axis_str):
             if not (occ1 and occ2):
