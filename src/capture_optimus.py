@@ -141,13 +141,18 @@ def run(context):
             camera.viewOrientation = orientation
             camera.isFitView = True
             viewport.camera = camera
-            adsk.doEvents()
+            # Multiple doEvents + sleep to ensure viewport updates
+            for _ in range(5):
+                adsk.doEvents()
+                time.sleep(0.1)
             apply_margin()
-            adsk.doEvents()
+            for _ in range(3):
+                adsk.doEvents()
+                time.sleep(0.1)
         elif is_custom:
             apply_margin()
             adsk.doEvents()
-        time.sleep(0.2)  # small pause to ensure render
+        time.sleep(0.3)  # extra pause to ensure render
 
         filename = f"optimus_{{name}}_{{ts}}.png"
         path = os.path.join(OUTPUT_DIR, filename)
@@ -182,8 +187,8 @@ def run(context):
 
     # 6. Turntable sequence: rotate around vertical axis (Z-axis for Z-up)
     turntable_angles = [0, 45, 90, 135, 180, 225, 270, 315]
-    # Also add a slight elevation (pitch) for a more dynamic view
-    # We'll implement by orbiting the camera around the model's bounding sphere.
+    # Elevated angles: orbit with camera raised above midplane
+    elevated_angles = [0, 90, 180, 270]
 
     # First, get model extents for turntable radius
     camera.isFitView = True
@@ -226,7 +231,33 @@ def run(context):
         time.sleep(0.2)
         capture("Turntable_" + str(angle).zfill(3), None, is_custom=True)
 
-    total = len(ortho_views) + len(iso_views) + len(turntable_angles)
+    # Elevated turntable: camera raised 30 degrees above midplane
+    elevation = math.radians(30)
+    for angle in elevated_angles:
+        rad = math.radians(angle)
+        cos_a = math.cos(rad)
+        sin_a = math.sin(rad)
+        # Rotate in XY plane then lift Z component
+        horiz_dist = distance * math.cos(elevation)
+        new_dir = adsk.core.Vector3D.create(
+            start_dir.x * cos_a - start_dir.y * sin_a,
+            start_dir.x * sin_a + start_dir.y * cos_a,
+            math.sin(elevation)
+        )
+        new_dir.normalize()
+        new_eye = target.copy()
+        scaled_dir = new_dir.copy()
+        scaled_dir.scaleBy(distance)
+        new_eye.translateBy(scaled_dir)
+        camera.eye = new_eye
+        camera.upVector = up_vector
+        camera.isFitView = False
+        viewport.camera = camera
+        adsk.doEvents()
+        time.sleep(0.2)
+        capture("Elevated_" + str(angle).zfill(3), None, is_custom=True)
+
+    total = len(ortho_views) + len(iso_views) + len(turntable_angles) + len(elevated_angles)
     print("All screenshots captured successfully. Total: " + str(total) + " images.")
 
 '''
