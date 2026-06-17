@@ -8,7 +8,7 @@ import subprocess
 URL = "http://127.0.0.1:27182/mcp"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(os.path.dirname(BASE_DIR), "output")
-PAYLOAD_FILE = os.path.join(BASE_DIR, "optimus_prime_g1_v8.py")
+PAYLOAD_FILE = os.path.join(BASE_DIR, "optimus_prime_g1_v9.py")
 session_id = None
 
 def send_request(payload):

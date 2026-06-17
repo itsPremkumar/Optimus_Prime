@@ -372,16 +372,11 @@ def run(context):
         # JOINT BUILDERS
         # ─────────────────────────────────────────────────────────────────
 
-        # FIX 1: Use ConstructionPoint instead of a SketchPoint on the XY
-        #         plane.  SketchPoints are mapped into 2-D sketch space, so
-        #         the Z component of the world coordinate is silently dropped.
-        #         ConstructionPoint.setByPoint() preserves all three axes.
         def _make_joint_geometry(cx, cy, cz):
-            cpi = root.constructionPoints.createInput()
-            cpi.setByPoint(adsk.core.Point3D.create(cx, cy, cz))
-            cp = root.constructionPoints.add(cpi)
-            cp.isLightBulbOn = False          # hide helper point in canvas
-            return adsk.fusion.JointGeometry.createByPoint(cp)
+            sketch = root.sketches.add(root.xYConstructionPlane)
+            sketch.isVisible = False
+            s_pt = sketch.sketchPoints.add(adsk.core.Point3D.create(cx, cy, cz))
+            return adsk.fusion.JointGeometry.createByPoint(s_pt)
 
         def revolute_joint(name, occ1, occ2, cx, cy, cz, axis_str):
             if not (occ1 and occ2):
@@ -1095,7 +1090,8 @@ def run(context):
                                 all_bodies.add(body)
 
                     inter_input = self._design.createInterferenceInput(all_bodies)
-                    results     = self._design.interferenceAnalysis(inter_input)
+                    inter_input.isCoincidentFacesInterference = False
+                    results     = self._design.analyzeInterference(inter_input)
                     count       = results.count
 
                     if count:
@@ -1442,8 +1438,7 @@ def run(context):
 
                     com = None
                     try:
-                        # ← FIX 8: use design.physicalProperties (correct API)
-                        com = self._design.physicalProperties.centerOfMass
+                        com = self._root.physicalProperties.centerOfMass
                     except Exception as e:
                         Logger.log(f"  {pose_name}: CoM unavailable ({e})", "WARN")
 
@@ -1635,7 +1630,7 @@ def run(context):
         #         produces a portable .f3d file on disk.
         try:
             os.makedirs(EXPORT_DIR, exist_ok=True)
-            archive_path = os.path.join(EXPORT_DIR, "Optimus_Prime_G1_v8.f3d")
+            archive_path = os.path.join(EXPORT_DIR, "Optimus_Prime_G1_v9.f3d")
             export_mgr   = design.exportManager
             archive_opts = export_mgr.createFusionArchiveExportOptions(archive_path)
             export_mgr.execute(archive_opts)

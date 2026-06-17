@@ -18,14 +18,21 @@ env/
 .DS_Store
 
 # Fusion 360 output files
+output/
 C:\opt_fusion_log.txt
 C:\OptimusPrime_STL/
+
+# Generated design files
+*.f3d
+*.stl
+*.urdf
+
+# Captures
+capture.png
 
 # OS
 Thumbs.db
 Desktop.ini
 
-# Project specific
-images/*.png
-!images/*.md
+# Runtime flags
 *.flag
