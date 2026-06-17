@@ -125,6 +125,7 @@ if __name__ == "__main__":
                         choices=["ALL", "rom", "head", "wave", "breathing", "walk", "run", "combat", "transform", "truck", "robot", "stability", "servo"])
     parser.add_argument("--capture", action="store_true")
     args = parser.parse_args()
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
     if not os.path.exists(PAYLOAD_FILE):
         print(f"Payload file not found: {PAYLOAD_FILE}")
@@ -156,29 +157,34 @@ if __name__ == "__main__":
     print("Transmitting Optimus Prime G1 Engine to Fusion 360...")
     res = run_script(script_content)
 
-    if res:
+    def _get_log_text(res):
+        if not res:
+            return ""
+        raw = res.get("message") or res.get("result", {}).get("message") or ""
+        if raw:
+            return raw
         content = res.get("result", {}).get("content", [])
-        text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+        return "".join(c.get("text", "") for c in content if isinstance(c, dict))
 
-        if "Cannot perform" in text or "dialog" in text:
+    if res:
+        raw = _get_log_text(res)
+        if raw and "Cannot perform" not in raw and "dialog" not in raw:
+            print(f"\nSimulation Complete!\n")
+            print(raw)
+        elif "Cannot perform" in raw or "dialog" in raw:
             print("\n[!] Dialog still blocking. Trying harder...")
             for attempt in range(5):
                 send_escape_to_fusion()
                 time.sleep(0.3)
             close_fusion_document()
             time.sleep(1)
-            
             print(f"\nRetry #{1}...")
             res = run_script(script_content)
             if res:
-                content2 = res.get("result", {}).get("content", [])
-                text2 = "".join(c.get("text", "") for c in content2 if isinstance(c, dict))
-                if "Cannot perform" in text2 or "dialog" in text2:
+                raw = _get_log_text(res)
+                if "Cannot perform" in raw or "dialog" in raw:
                     print(f"\n[!] Still blocked after retry.")
-                    print(f"Response: {json.dumps(res, indent=2)}")
-                else:
-                    print(f"\nSimulation Complete!")
                     print(json.dumps(res, indent=2))
-        else:
-            print(f"\nSimulation Complete!")
-            print(json.dumps(res, indent=2))
+                else:
+                    print(f"\nSimulation Complete!\n")
+                    print(raw)

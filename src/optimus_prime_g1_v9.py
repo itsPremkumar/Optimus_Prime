@@ -99,9 +99,11 @@ class Logger:
 
     @classmethod
     def log(cls, msg, level="INFO"):
-        ts       = datetime.datetime.now().strftime("%H:%M:%S")
-        safe_msg = msg.encode("ascii", "replace").decode("ascii")
-        cls._buffer.append(f"[{ts}] [{level}] {safe_msg}\n")
+        ts   = datetime.datetime.now().strftime("%H:%M:%S")
+        line = f"[{ts}] [{level}] {msg}\n"
+        safe = line.encode("ascii", "replace").decode("ascii")
+        print(safe, end="", flush=True)
+        cls._buffer.append(line)
         cls._count += 1
         if cls._count >= 20:
             cls.flush()
@@ -131,7 +133,7 @@ def run(context):
     ui  = None
 
     Logger.log("=" * 60)
-    Logger.log("EXECUTION START  v9 — Optimus Prime G1 (bug-fixed)")
+    Logger.log("EXECUTION START  v9 -- Optimus Prime G1 (bug-fixed)")
     Logger.log("=" * 60)
 
     try:
@@ -895,7 +897,7 @@ def run(context):
                     lo, hi = limits
                     if deg < lo or deg > hi:
                         Logger.log(
-                            f"CLAMP: {joint_name}.{axis} {deg:.0f}° → [{lo}°, {hi}°]", "WARN")
+                            f"CLAMP: {joint_name}.{axis} {deg:.0f} deg -> [{lo} deg, {hi} deg]", "WARN")
                     return max(lo, min(hi, deg))
                 return deg
 
@@ -1010,7 +1012,7 @@ def run(context):
                 for name, _ in rev_targets:
                     self.move_joint(name, 0.0, steps, "pitch", ease=True)
                 self._refresh()
-                Logger.log("→ reset to neutral")
+                Logger.log("-> reset to neutral")
 
             # FIX 9: The original code tried three non-existent API paths:
             #         measureManager.measureInterference(product),
@@ -1043,21 +1045,20 @@ def run(context):
                         for i in range(min(count, 5)):
                             r = results.item(i)
                             Logger.log(
-                                f"    [{r.entityOne.name}] ↔ [{r.entityTwo.name}] "
-                                f"| Vol:{r.volume:.3f} cm³ | "
+                                f"    [{r.entityOne.name}] <-> [{r.entityTwo.name}] "
                                 f"XYZ:({r.intersectionCenter.x:.2f},"
                                 f"{r.intersectionCenter.y:.2f},"
                                 f"{r.intersectionCenter.z:.2f}) cm")
                         if count > 5:
-                            Logger.log(f"    …{count-5} more — see log")
+                            Logger.log(f"    ...{count-5} more -- see log")
                     else:
-                        Logger.log(f"  {label}: ✅ 0 collisions")
+                        Logger.log(f"  {label}: [OK] 0 collisions")
                     self._cols.append((label, count))
 
                 except Exception as primary_err:
                     # ── Fallback: graceful skip ───────────────────────────
                     Logger.log(
-                        f"  {label}: ⚠ interference check skipped ({primary_err})", "WARN")
+                        f"  {label}: interference check skipped ({primary_err})", "WARN")
                     self._cols.append((label, -1))
 
             # ── Module 1: Joint ROM Test ──────────────────────────────────
@@ -1235,7 +1236,7 @@ def run(context):
             def simulate_transformation(self):
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 8a / 9 ---")
-                Logger.log("MODULE 8a: TRANSFORMATION (Robot→Truck)")
+                Logger.log("MODULE 8a: TRANSFORMATION (Robot->Truck)")
 
                 self._transform_to_truck(steps_scale=1.0)
                 self._interfere("Truck-mode check")
@@ -1243,7 +1244,7 @@ def run(context):
                 Logger.log("MODULE 8b: TRUCK DRIVING")
                 Logger.log("Truck driving done.")
 
-                Logger.log("MODULE 8c: TRUCK → ROBOT")
+                Logger.log("MODULE 8c: TRUCK -> ROBOT")
                 self._transform_to_robot(steps_scale=1.0)
                 Logger.log("Robot mode restored.")
                 self.reset_all(steps=10)
@@ -1257,7 +1258,7 @@ def run(context):
                     mo = j.jointMotion
                     if mo.objectType == adsk.fusion.RevoluteJointMotion.classType():
                         deg = math.degrees(mo.rotationValue)
-                        Logger.log(f"  {j.name:30s} REV  pitch={deg:+.1f}°")
+                        Logger.log(f"  {j.name:30s} REV  pitch={deg:+.1f} deg")
                     elif mo.objectType == adsk.fusion.BallJointMotion.classType():
                         try:
                             p = math.degrees(mo.pitchValue)
@@ -1265,7 +1266,7 @@ def run(context):
                             r = math.degrees(mo.rollValue)
                             Logger.log(
                                 f"  {j.name:30s} BALL "
-                                f"pitch={p:+.1f}° yaw={y:+.1f}° roll={r:+.1f}°")
+                                f"pitch={p:+.1f} deg yaw={y:+.1f} deg roll={r:+.1f} deg")
                         except Exception as e:
                             Logger.log(
                                 f"  {j.name:30s} BALL (readback failed: {e})", "WARN")
@@ -1277,7 +1278,7 @@ def run(context):
                 self.reset_all(steps=10)
                 self.move_joint("Blaster_Fold", 0, steps=10, axis="pitch")
                 Logger.log("--- ROBOT MODE ---")
-                Logger.log("ROBOT MODE — holding position.")
+                Logger.log("ROBOT MODE -- holding position.")
                 try:
                     cam           = self._app.activeViewport.camera
                     cam.isFitView = True
@@ -1291,14 +1292,14 @@ def run(context):
             def simulate_truck_mode(self):
                 self.reset_all(steps=10)
                 Logger.log("--- TRUCK MODE ---")
-                Logger.log("TRANSFORMATION (Robot→Truck) — holding position")
+                Logger.log("TRANSFORMATION (Robot->Truck) -- holding position")
                 self.debug_joints("BEFORE_TRANSFORM")
 
                 self._transform_to_truck(steps_scale=1.0)
                 self._interfere("Truck-mode check")
 
                 self.debug_joints("AFTER_TRANSFORM")
-                Logger.log("TRUCK MODE — holding position. No reverse transform.")
+                Logger.log("TRUCK MODE -- holding position. No reverse transform.")
                 try:
                     cam           = self._app.activeViewport.camera
                     cam.isFitView = True
@@ -1312,7 +1313,7 @@ def run(context):
             def simulate_battle_mode(self):
                 self.reset_all(steps=10)
                 Logger.log("--- BATTLE MODE ---")
-                Logger.log("TRANSFORMATION (Robot→Battle) — holding position")
+                Logger.log("TRANSFORMATION (Robot->Battle) -- holding position")
 
                 self.move_joint("Blaster_Fold", 0, steps=10, axis="pitch")
                 self.move_ball([
@@ -1327,7 +1328,7 @@ def run(context):
                 ], steps=22)
 
                 self._interfere("Battle-mode check")
-                Logger.log("BATTLE MODE — holding position.")
+                Logger.log("BATTLE MODE -- holding position.")
                 try:
                     cam           = self._app.activeViewport.camera
                     cam.isFitView = True
@@ -1388,12 +1389,12 @@ def run(context):
 
                     if com:
                         stable = abs(com.x) < 3.0 and abs(com.y) < 5.0
-                        tag    = "✅ STABLE" if stable else "❌ UNSTABLE"
+                        tag    = "[OK] STABLE" if stable else "[FAIL] UNSTABLE"
                         Logger.log(
                             f"  {pose_name:<16} {tag}  "
                             f"CoM=({com.x:.1f}, {com.y:.1f}, {com.z:.1f})")
                     else:
-                        Logger.log(f"  {pose_name:<16} ⚠ CoM unavailable (unsaved doc)", "WARN")
+                        Logger.log(f"  {pose_name:<16} [WARN] CoM unavailable (unsaved doc)", "WARN")
 
             # ── Module 9b: Servo Load Estimation ─────────────────────────
             def estimate_servo_loads(self):
@@ -1417,9 +1418,9 @@ def run(context):
                     status = ("OK" if margin >= 1.5 else
                               ("MARGINAL" if margin >= 0.9 else "OVERLOAD"))
                     Logger.log(
-                        f"  {label:<22} need {need:5.2f} kg·cm  "
-                        f"rated {spec['rated']}  margin {margin:.2f}×  "
-                        f"{spec['name']}  {'✅ OK' if status == 'OK' else '⚠ ' + status}")
+                        f"  {label:<22} need {need:5.2f} kg.cm  "
+                        f"rated {spec['rated']}  margin {margin:.2f}x  "
+                        f"{spec['name']}  {'[OK]' if status == 'OK' else '[WARN] ' + status}")
 
             # ── URDF Export ───────────────────────────────────────────────
             def export_urdf(self):
@@ -1440,7 +1441,7 @@ def run(context):
                             f.write(f'    <child link="{o2}"/>\n')
                             f.write(f'  </joint>\n')
                         f.write('</robot>\n')
-                    Logger.log(f"URDF → {path}")
+                        Logger.log(f"URDF -> {path}")
                 except Exception:
                     Logger.log(f"URDF export failed: {traceback.format_exc()}", "ERROR")
 
@@ -1473,7 +1474,7 @@ def run(context):
                                 Logger.log(
                                     f"STL fail: {comp.name}_{body.name}", "WARN")
 
-                    Logger.log(f"STL exported {count} bodies → {EXPORT_DIR}")
+                    Logger.log(f"STL exported {count} bodies -> {EXPORT_DIR}")
                 except Exception:
                     Logger.log(f"STL export failed: {traceback.format_exc()}", "ERROR")
 
@@ -1550,11 +1551,11 @@ def run(context):
 
                 # Final report
                 Logger.log("=" * 50)
-                Logger.log("OPTIMUS PRIME G1 — FINAL REPORT")
+                Logger.log("OPTIMUS PRIME G1 -- FINAL REPORT")
                 Logger.log("=" * 50)
                 for label, count in self._cols:
                     if count >= 0:
-                        icon = "✅" if count == 0 else "⚠"
+                        icon = "[OK]" if count == 0 else "[WARN]"
                         Logger.log(f"  {label:<40} {icon}  {count} collision(s)")
                     else:
                         Logger.log(f"  {label:<40} ?  N/A")
@@ -1578,7 +1579,7 @@ def run(context):
             export_mgr   = design.exportManager
             archive_opts = export_mgr.createFusionArchiveExportOptions(archive_path)
             export_mgr.execute(archive_opts)
-            Logger.log(f"Design archived → {archive_path}")
+            Logger.log(f"Design archived -> {archive_path}")
         except Exception as e:
             Logger.log(f"Could not archive document: {e}", "WARN")
 
