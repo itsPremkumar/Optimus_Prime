@@ -29,6 +29,7 @@
 [![Fusion 360](https://img.shields.io/badge/Fusion%20360-MCP-orange)](https://www.autodesk.com/products/fusion-360)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-itsPremkumar%2FOptimus__Prime-181717?logo=github)](https://github.com/itsPremkumar/Optimus_Prime)
+[![GitHub Pages](https://img.shields.io/badge/Website-itsPremkumar.github.io-2ea44f?logo=github-pages)](https://itspremkumar.github.io/Optimus_Prime/)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-blueviolet)](https://www.conventionalcommits.org)
 
 An open-source **Autodesk Fusion 360 simulation suite** that programmatically builds a fully-articulated, **3D-printable Optimus Prime G1** robot and runs a **9-module kinematic simulation** — all driven remotely via the **Model Context Protocol (MCP)**.
