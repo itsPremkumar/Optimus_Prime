@@ -13,7 +13,7 @@
   ============================================================
 -->
 
-# Optimus Prime G1 — Full Simulation Engine v7.0
+# Optimus Prime G1 — Full Simulation Engine v9.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://python.org)
@@ -30,7 +30,7 @@ An open-source **Autodesk Fusion 360 simulation suite** that programmatically bu
 
 ## What Is This?
 
-This project is a **Python script** (`src/optimus_prime_g1_v8.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
+This project is a **Python script** (`src/optimus_prime_g1_v9.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
 
 1. **Builds** a complete Optimus Prime G1 3D model with 100+ components
 2. **Applies** materials (red/blue metallic paint, chrome, rubber, glass)
@@ -47,7 +47,7 @@ Zero external Python dependencies — uses only the **standard library**.
 - **Full 3D model** — 100+ body components (torso, head, pelvis, arms, legs, backpack, ion blaster)
 - **9 simulation modules** — ROM test, head scan, wave, breathing, walking, running, combat, transformation, stability
 - **MCP-driven** — remote control via Fusion 360's Model Context Protocol
-- **3D-printable** — 0.45 mm clearance, Y-axis midplane shell splitting, M3 screw holes, magnet pockets
+- **3D-printable** — 0.60 mm clearance, Y-axis midplane shell splitting, M3 screw holes, magnet pockets
 - **Zero dependencies** — Python standard library only
 - **CLI control** — run single modules, stop mid-simulation, capture screenshots
 
@@ -84,11 +84,14 @@ python src/run_simulation.py --stop
 ```
 Optimus_Prime/
 ├── src/                           # Source code
-│   ├── optimus_prime_g1_v8.py     # Main Fusion 360 script (model + simulation engine)
+│   ├── optimus_prime_g1_v9.py     # Main Fusion 360 script (model + simulation engine)
+│   ├── optimus_prime_g1_v8.py     # Previous version (v8 — reference only)
+│   ├── optimus_prime_g1_v7.py     # Previous version (v7 — reference only)
 │   ├── run_simulation.py          # CLI controller — sends the script to Fusion 360
 │   ├── capture_optimus.py         # Multi-angle viewport screenshot capture
+│   ├── analyze_bugs.py            # Post-simulation collision and bug analysis
 │   └── api_test.py                # Dev utility to query Fusion 360 API
-├── archive/                       # Previous versions (reference only)
+├── archive/                       # Archived legacy versions
 │   └── optimus_prime_simulation_v6.py
 ├── images/                        # Saved viewport screenshots
 ├── .github/                       # GitHub issue/PR templates
@@ -147,7 +150,8 @@ Saves 6 viewport renders (Front, Back, Left, Right, Top, Isometric) to `images/`
 
 ### Servo Hardware
 
-- **MG996R** (9.4 kg·cm) — waist, neck pitch, hips, knees, ankles, shoulders, elbows
+- **MG996R-HD** (20.0 kg·cm) — hips, waist (high-duty)
+- **MG996R** (9.4 kg·cm) — neck pitch, knees, ankles, shoulders, elbows
 - **MG90S** (1.8 kg·cm) — neck yaw, wrists, backpack hinge, steering servos
 
 ### Joint Types
@@ -162,17 +166,18 @@ Saves 6 viewport renders (Front, Back, Left, Right, Top, Isometric) to `images/`
 
 | File | Description |
 |------|-------------|
-| `C:\opt_fusion_log.txt` | Timestamped execution log with all module results and collision details |
-| `C:\OptimusPrime_STL\robot.urdf` | Minimal URDF skeleton for robotics toolchain import |
-| `images/*.png` | Viewport screenshots (1920×1080) from `capture_optimus.py` |
+| `output/logs/optimus_fusion_log_*.txt` | Timestamped execution log with all module results and collision details |
+| `output/exports/robot.urdf` | Minimal URDF skeleton for robotics toolchain import |
+| `output/exports/Optimus_Prime_G1_v9.f3d` | Fusion 360 archive of the full model |
+| `output/screenshots/*.png` | Viewport screenshots (1920×1080) from `capture_optimus.py` |
 
-> **STL batch export** is controlled via `EXPORT_STL = True/False` flag at the top of `src/optimus_prime_g1_v8.py`.
+> **STL batch export** is controlled via `EXPORT_STL = True/False` flag at the top of `src/optimus_prime_g1_v9.py`.
 
 ---
 
 ## 3D Printing Notes
 
-- Clearance on all moving fits: **0.45 mm**
+- Clearance on all moving fits: **0.60 mm**
 - All major shells are split along the Y-axis midplane for FDM printing
 - Bodies tagged with `Shell`, `Link`, `Main`, `Armor`, `Core`, `Pod`, `Palm`, `Block`, or `Sole` are automatically halved
 - Screw holes (M3), magnet pockets (Ø6.4 × 3.5 mm), and wire channels are pre-cut into the geometry
@@ -189,7 +194,7 @@ Optimus Prime is the iconic leader of the Autobots from the Transformers franchi
 No. This script runs **inside Autodesk Fusion 360** via its MCP server. It is not a standalone simulation.
 
 ### Can I 3D print the robot?
-Yes. The model is designed for **FDM 3D printing** with 0.45 mm clearance on all moving fits, shell splitting along the midplane, M3 screw holes, and magnet pockets (Ø6.4 × 3.5 mm).
+Yes. The model is designed for **FDM 3D printing** with 0.60 mm clearance on all moving fits, shell splitting along the midplane, M3 screw holes, and magnet pockets (Ø6.4 × 3.5 mm).
 
 ### What Python packages are required?
 **None.** The project uses only Python's **standard library** (`urllib`, `json`, `os`, `argparse`). The Fusion 360 script uses the `adsk` API which is built into Fusion 360.

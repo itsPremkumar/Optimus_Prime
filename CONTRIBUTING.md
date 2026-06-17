@@ -8,7 +8,7 @@ Thank you for considering contributing to this project! We welcome contributions
 - Open a [GitHub Issue](https://github.com/itsPremkumar/Optimus_Prime/issues/new?template=bug_report.md)
 - Include:
   - Python version and Fusion 360 version
-  - Full error output from `C:\opt_fusion_log.txt`
+  - Full error output from `output/logs/optimus_fusion_log_*.txt`
   - Steps to reproduce
 
 ### 2. Suggesting Enhancements

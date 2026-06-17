@@ -4,12 +4,15 @@
 
 | Version | Supported          |
 |---------|--------------------|
+| 9.0.x   | :white_check_mark:  |
+| 8.0.x   | :white_check_mark:  |
+| 7.0.x   | :white_check_mark:  |
 | 6.0.x   | :white_check_mark:  |
 | < 6.0   | :x:                 |
 
 ## Reporting a Vulnerability
 
-This project interfaces with Autodesk Fusion 360 via its MCP server on `http://127.0.0.1:27182/mcp` and writes to `C:\opt_fusion_log.txt` and `C:\OptimusPrime_STL\`.
+This project interfaces with Autodesk Fusion 360 via its MCP server on `http://127.0.0.1:27182/mcp` and writes logs and exports to the project-local `output/` directory.
 
 If you discover a security vulnerability:
 
@@ -23,4 +26,4 @@ We will acknowledge receipt within 48 hours and provide a timeline for a fix.
 
 - The MCP connection is localhost-only — do not expose it to untrusted networks
 - Script payloads are executed with the full privileges of Fusion 360 — only run trusted scripts
-- The stop flag file (`C:\opt_fusion_stop.flag`) should not be written by untrusted processes
+- The stop flag file (`output/stop.flag`) should not be written by untrusted processes
