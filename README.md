@@ -207,7 +207,25 @@ Overall height: **~47.5 cm** (approx. 19 inches, 1:10 scale).
 
 ---
 
-## Quick Start
+## Setup & Running
+
+### 1. Enable MCP Server in Fusion 360
+
+The MCP (Model Context Protocol) server must be running in Fusion 360 before you can run the simulation.
+
+**Fusion 360 v19.0+ (Built-in MCP):**
+1. Open Fusion 360
+2. Go to **Tools → Scripts and Add-Ins** (or press `Shift+S`)
+3. Select the **MCP Server** entry and click **Run**
+
+**Alternatively, command line (PowerShell):**
+```powershell
+& "C:\Program Files\Autodesk\Fusion 360\FusionLauncher.exe" --mcp
+```
+
+**Verify MCP is running:** Open a browser and navigate to `http://127.0.0.1:27182/mcp` — you should see a JSON-RPC response.
+
+### 2. Clone and Run
 
 ```bash
 # Clone the repo
@@ -220,9 +238,65 @@ python src/run_simulation.py
 # Single module
 python src/run_simulation.py --module walk
 
+# Capture screenshots during simulation
+python src/run_simulation.py --capture
+
+# Run robot standing pose
+python src/run_simulation.py --module robot
+
+# Run truck mode transformation
+python src/run_simulation.py --module truck --capture
+
 # Stop a running simulation
 python src/run_simulation.py --stop
 ```
+
+> **Note:** On first run, `run_simulation.py` will auto-detect and launch Fusion 360 if it's not already running. The MCP server typically takes 30–60 seconds to become available.
+
+### 3. CLI Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--module` | `ALL` | Module to run: `ALL`, `rom`, `head`, `wave`, `breathing`, `walk`, `run`, `combat`, `transform`, `truck`, `robot`, `stability`, `servo` |
+| `--capture` | off | Capture 6 multi-angle viewport screenshots (Front, Back, Left, Right, Top, Isometric) |
+| `--mcp-url` | `http://127.0.0.1:27182/mcp` | Custom MCP server URL |
+| `--no-launch` | off | Skip auto-launch of Fusion 360 (use if manually started) |
+| `--keep-docs` | off | Keep existing documents open (default closes all documents first) |
+| `--stop` | off | Stop a running simulation via flag file |
+
+### 4. How MCP Communication Works
+
+The system uses **JSON-RPC 2.0** over HTTP to communicate with Fusion 360's built-in MCP server:
+
+```
+┌─────────────┐     HTTP POST (JSON-RPC)     ┌──────────────┐
+│  Your PC    │ ──────────────────────────▶  │ Fusion 360   │
+│  run_sim.py │                               │ MCP Server   │
+│  (Python)   │ ◀──────────────────────────  │ (127.0.0.1)  │
+└─────────────┘     Script result + logs     └──────┬───────┘
+                                                    │
+                                           ┌────────▼────────┐
+                                           │ adsk.core /     │
+                                           │ adsk.fusion API │
+                                           │ (Fusion 360)    │
+                                           └─────────────────┘
+```
+
+**Step-by-step flow:**
+1. `run_simulation.py` connects to the MCP server at `http://127.0.0.1:27182/mcp`
+2. Sends an `initialize` JSON-RPC request to establish a session
+3. Closes any open documents (via embedded prologue script)
+4. Sends the `optimus_prime_g1_v9.py` payload via `fusion_mcp_execute` tool call
+5. Fusion 360 executes the script using its internal Python API (`adsk` modules)
+6. The script builds the model, runs the selected module, and captures output
+7. Results (logs, screenshots, exports) are written to the `output/` directory
+8. `run_simulation.py` prints the execution log returned by Fusion
+
+**Key details:**
+- MCP sessions persist across requests — a session ID is stored after initialization
+- The payload script runs with full Fusion 360 API privileges (same as Scripts & Add-Ins)
+- Timeout is set to 3600 seconds (1 hour) for long simulations
+- If a dialog is blocking execution, Escape key is sent to dismiss it and the script retries
 
 ---
 
@@ -421,7 +495,7 @@ Yes. The model is designed for **FDM 3D printing** with 0.60 mm clearance on all
 Use `--module` flag: `python run_simulation.py --module walk`
 
 ### What is MCP?
-**Model Context Protocol** (MCP) is a protocol that allows external applications to communicate with Fusion 360 remotely. This project uses Fusion 360's built-in MCP server at `http://127.0.0.1:27182/mcp`.
+**Model Context Protocol** (MCP) is a JSON-RPC 2.0 protocol built into Fusion 360 that allows external applications (like this Python script) to communicate with Fusion 360 remotely. The MCP server listens on `http://127.0.0.1:27182/mcp` and can execute scripts, query the model, and control the viewport. See the [Setup & Running](#setup--running) section above for how to enable it.
 
 ### How do I stop a simulation mid-run?
 Run `python run_simulation.py --stop` from another terminal. This creates a flag file that the simulation checks every frame.

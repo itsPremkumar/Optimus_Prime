@@ -23,8 +23,24 @@
 
 - **FIX 9** `_interfere()` — `measureManager.measureInterference()` / `design.measureInterference()` do not exist in Python API. Replaced with `design.createInterferenceInput(bodies)` → `design.interferenceAnalysis()`. Fallback chain retained for API-version compatibility.
 
+### Added
+- **STEP export** — full assembly exported as `Optimus_Prime_G1_v9.step` via `EXPORT_STEP` flag
+- **Demo videos** — transformation, truck mode, and robot mode videos with README integration
+- **Technical specifications section** — complete hardware inventory (24 servos, 6 TT motors, 23 bearings, etc.), servo load analysis with safety margins, vertical layout dimensions, materials table
+- **Inspiration & Concept section** — Transformers G1 movie origin and project vision
+- **Advanced Use Cases section** — robotics education, 3D printing/fabrication, research pipeline
+- **Kinematic tree diagram** — full joint hierarchy from grounded pelvis through all 18 joints
+- **Joint classification table** — all 18 joints with type, DOF, limits, and servo assignments
+- **Body components table** — 19 assemblies with body counts and color schemes
+
 ### Changed
 - Archive filename: `Optimus_Prime_G1_v9.f3d`
+- Documentation overhaul — README expanded from ~250 to ~465 lines with all new sections
+- Simulation modules table — added Duration and Key Angles columns
+- Output files table — added STEP export entry with full export flag documentation
+- FAQs — added 5 new questions (servo count, transformation, STEP export, physical vs simulation, runtime)
+- Video files renamed and organized: `Optimus_Prime_Transformation.mp4`, `Optimus_Prime_Truck_Mode.mp4`, `Optimus_Prime_Robot_Mode.mp4`
+- Setup & Running guide — MCP server enablement steps (Fusion 360 UI + command line), CLI options table with all 6 flags, MCP communication architecture diagram and step-by-step flow
 
 ## [8.0.0] - 2026-06-16
 
