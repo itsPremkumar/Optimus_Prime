@@ -321,16 +321,23 @@ def run(context):
         # ─────────────────────────────────────────────────────────────────
 
         def _make_joint_geometry(cx, cy, cz):
-            # old version
-            # sketch = root.sketches.add(root.xYConstructionPlane)
-            # sketch.isVisible = False
-            # s_pt = sketch.sketchPoints.add(adsk.core.Point3D.create(cx, cy, cz))
-            # return adsk.fusion.JointGeometry.createByPoint(s_pt)
-            cpi = root.constructionPoints.createInput()
-            cpi.setByPoint(adsk.core.Point3D.create(cx, cy, cz))
-            cp = root.constructionPoints.add(cpi)
-            cp.isLightBulbOn = False
-            return adsk.fusion.JointGeometry.createByPoint(cp)
+            # Try construction points first (native Fusion)
+            try:
+                cpi = root.constructionPoints.createInput()
+                cpi.setByPoint(adsk.core.Point3D.create(cx, cy, cz))
+                cp = root.constructionPoints.add(cpi)
+                cp.isLightBulbOn = False
+                return adsk.fusion.JointGeometry.createByPoint(cp)
+            except Exception:
+                pass
+            # Fallback: sketch points (MCP execution)
+            try:
+                sketch = root.sketches.add(root.xYConstructionPlane)
+                sketch.isVisible = False
+                s_pt = sketch.sketchPoints.add(adsk.core.Point3D.create(cx, cy, cz))
+                return adsk.fusion.JointGeometry.createByPoint(s_pt)
+            except Exception:
+                return None
 
         def revolute_joint(name, occ1, occ2, cx, cy, cz, axis_str):
             if not (occ1 and occ2):
@@ -781,22 +788,25 @@ def run(context):
 
         # ── Kinematic Validation ──────────────────────────────────────────
         Logger.log("Validating mechanical linkages...")
-        orphans       = []
-        jointed_comps = set()
-        for i in range(root.asBuiltJoints.count):
-            j = root.asBuiltJoints.item(i)
-            if j.occurrenceOne:
-                jointed_comps.add(j.occurrenceOne.component.name)
-            if j.occurrenceTwo:
-                jointed_comps.add(j.occurrenceTwo.component.name)
-        for comp in comps_list:
-            if comp.name not in ("OP_Torso", "OP_Pelvis") \
-               and comp.name not in jointed_comps:
-                orphans.append(comp.name)
-        if orphans:
-            Logger.log(f"!!! WARNING: ORPHANS {orphans}", "WARN")
-        else:
-            Logger.log("All components bound to kinematic chain. [ OK ]")
+        try:
+            orphans       = []
+            jointed_comps = set()
+            for i in range(root.asBuiltJoints.count):
+                j = root.asBuiltJoints.item(i)
+                if j.occurrenceOne:
+                    jointed_comps.add(j.occurrenceOne.component.name)
+                if j.occurrenceTwo:
+                    jointed_comps.add(j.occurrenceTwo.component.name)
+            for comp in comps_list:
+                if comp.name not in ("OP_Torso", "OP_Pelvis") \
+                   and comp.name not in jointed_comps:
+                    orphans.append(comp.name)
+            if orphans:
+                Logger.log(f"!!! WARNING: ORPHANS {orphans}", "WARN")
+            else:
+                Logger.log("All components bound to kinematic chain. [ OK ]")
+        except Exception:
+            Logger.log("Kinematic validation skipped (MCP env limitation).", "WARN")
 
         try:
             cam          = app.activeViewport.camera
@@ -845,15 +855,19 @@ def run(context):
                     j = self._root.asBuiltJoints.itemByName(name)
                     if j is not None:
                         return j
+                except Exception:
+                    Logger.log(f"_gj exception for '{name}': {traceback.format_exc()}", "ERROR")
+                    return None
+                # Joint not found – try listing available joints (may fail in MCP env)
+                try:
                     if not self._logged_joints:
                         self._logged_joints = True
                         names = [self._root.asBuiltJoints.item(i).name
                                  for i in range(self._root.asBuiltJoints.count)]
                         Logger.log(f"Joint '{name}' not found. Available: {names}", "WARN")
-                    return None
                 except Exception:
-                    Logger.log(f"_gj exception for '{name}': {traceback.format_exc()}", "ERROR")
-                    return None
+                    pass
+                return None
 
             @staticmethod
             def _ease(t):
@@ -1260,25 +1274,28 @@ def run(context):
             def debug_joints(self, label):
                 """Dump all joint names, types, and current values to the log."""
                 Logger.log(f"=== JOINT STATE [{label}] ===")
-                for i in range(self._root.asBuiltJoints.count):
-                    j  = self._root.asBuiltJoints.item(i)
-                    mo = j.jointMotion
-                    if mo.objectType == adsk.fusion.RevoluteJointMotion.classType():
-                        deg = math.degrees(mo.rotationValue)
-                        Logger.log(f"  {j.name:30s} REV  pitch={deg:+.1f} deg")
-                    elif mo.objectType == adsk.fusion.BallJointMotion.classType():
-                        try:
-                            p = math.degrees(mo.pitchValue)
-                            y = math.degrees(mo.yawValue)
-                            r = math.degrees(mo.rollValue)
-                            Logger.log(
-                                f"  {j.name:30s} BALL "
-                                f"pitch={p:+.1f} deg yaw={y:+.1f} deg roll={r:+.1f} deg")
-                        except Exception as e:
-                            Logger.log(
-                                f"  {j.name:30s} BALL (readback failed: {e})", "WARN")
-                    else:
-                        Logger.log(f"  {j.name:30s} {mo.objectType} (unexpected)", "WARN")
+                try:
+                    for i in range(self._root.asBuiltJoints.count):
+                        j  = self._root.asBuiltJoints.item(i)
+                        mo = j.jointMotion
+                        if mo.objectType == adsk.fusion.RevoluteJointMotion.classType():
+                            deg = math.degrees(mo.rotationValue)
+                            Logger.log(f"  {j.name:30s} REV  pitch={deg:+.1f} deg")
+                        elif mo.objectType == adsk.fusion.BallJointMotion.classType():
+                            try:
+                                p = math.degrees(mo.pitchValue)
+                                y = math.degrees(mo.yawValue)
+                                r = math.degrees(mo.rollValue)
+                                Logger.log(
+                                    f"  {j.name:30s} BALL "
+                                    f"pitch={p:+.1f} deg yaw={y:+.1f} deg roll={r:+.1f} deg")
+                            except Exception as e:
+                                Logger.log(
+                                    f"  {j.name:30s} BALL (readback failed: {e})", "WARN")
+                        else:
+                            Logger.log(f"  {j.name:30s} {mo.objectType} (unexpected)", "WARN")
+                except Exception:
+                    Logger.log("  (joint debug unavailable in this environment)", "WARN")
 
             # ── Robot Mode ────────────────────────────────────────────────
             def simulate_robot_mode(self):

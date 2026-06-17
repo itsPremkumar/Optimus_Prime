@@ -162,32 +162,20 @@ def wait_for_mcp(timeout=120):
 # ------------------------------------------------------------------ #
 #  Document management
 # ------------------------------------------------------------------ #
-def close_all_documents():
-    """Execute a small script that closes every open document."""
-    close_script = """
+CLOSE_DOCS_PROLOGUE = """
 import adsk.core, adsk.fusion
-
-app = adsk.core.Application.get()
-docs = app.documents
-# Close all documents – iterate in reverse because closing modifies the collection
-for i in range(docs.count - 1, -1, -1):
-    doc = docs.item(i)
-    try:
-        doc.close(False)  # False = don't save changes
-    except:
-        pass
-# If no documents left, Fusion will exit; we'll create a new empty design.
-if docs.count == 0:
-    docs.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
+try:
+    app = adsk.core.Application.get()
+    docs = app.documents
+    for i in range(docs.count - 1, -1, -1):
+        doc = docs.item(i)
+        try:
+            doc.close(False)
+        except:
+            pass
+except:
+    pass
 """
-    resp = call_tool("fusion_mcp_execute", {
-        "featureType": "script",
-        "object": {"script": close_script}
-    }, timeout=30)
-    if resp:
-        print("Old documents closed.")
-    else:
-        print("Warning: could not close documents – proceeding anyway.")
 
 def send_escape():
     """Send Escape key to Fusion to dismiss modal dialogs (via PowerShell)."""
@@ -301,27 +289,21 @@ if __name__ == "__main__":
         send_escape()
         time.sleep(0.5)
 
-    # 3. Close all existing documents (except if --keep-docs)
-    if not args.keep_docs:
-        close_all_documents()
-        time.sleep(1)
-
-    # 4. Build the payload script
-    if not os.path.exists(PAYLOAD_FILE):
-        print(f"Payload not found: {PAYLOAD_FILE}")
-        sys.exit(1)
-
+    # 3. Close all existing documents (embedded in payload to avoid session issues)
     output_dir = os.path.join(os.path.dirname(BASE_DIR), "output")
     print(f"Loading payload for module '{args.module}'...")
     with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
-        script = f"TARGET_MODULE = '{args.module}'\n"
+        script = ""
+        if not args.keep_docs:
+            script += CLOSE_DOCS_PROLOGUE + "\n"
+        script += f"TARGET_MODULE = '{args.module}'\n"
         script += f"CAPTURE_SCREENSHOTS = {args.capture}\n"
         script += f"EXPORT_DIR = r'{output_dir}\\exports'\n"
         script += f"LOG_DIR = r'{output_dir}\\logs'\n"
         script += f"SCREENSHOT_DIR = r'{output_dir}\\screenshots'\n"
         script += f.read()
 
-    # 5. Run the simulation
+    # 4. Run the simulation
     print("Sending Optimus Prime G1 engine to Fusion...")
     res = run_simulation(script)
 
@@ -332,10 +314,16 @@ if __name__ == "__main__":
             for _ in range(5):
                 send_escape()
                 time.sleep(0.3)
-            # Optionally close documents and retry once
-            close_all_documents()
-            time.sleep(1)
-            res = run_simulation(script)
+            # Retry without the close-docs prologue (docs already closed)
+            script_retry = ""
+            script_retry += f"TARGET_MODULE = '{args.module}'\n"
+            script_retry += f"CAPTURE_SCREENSHOTS = {args.capture}\n"
+            script_retry += f"EXPORT_DIR = r'{output_dir}\\exports'\n"
+            script_retry += f"LOG_DIR = r'{output_dir}\\logs'\n"
+            script_retry += f"SCREENSHOT_DIR = r'{output_dir}\\screenshots'\n"
+            with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
+                script_retry += f.read()
+            res = run_simulation(script_retry)
             log = _get_log_text(res) if res else ""
         print(f"\nSimulation Complete!\n{log}")
     else:
