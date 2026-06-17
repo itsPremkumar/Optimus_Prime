@@ -160,15 +160,27 @@ if __name__ == "__main__":
     def _get_log_text(res):
         if not res:
             return ""
-        raw = res.get("message") or res.get("result", {}).get("message") or ""
-        if raw:
+        out = res.get("message") or res.get("result", {}).get("message") or ""
+        if out:
+            return out
+        for c in res.get("result", {}).get("content", []):
+            raw = c.get("text", "") if isinstance(c, dict) else ""
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+                msg = parsed.get("message", "")
+                if msg:
+                    return msg
+            except Exception:
+                pass
             return raw
-        content = res.get("result", {}).get("content", [])
-        return "".join(c.get("text", "") for c in content if isinstance(c, dict))
+        return ""
 
     if res:
         raw = _get_log_text(res)
         if raw and "Cannot perform" not in raw and "dialog" not in raw:
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
             print(f"\nSimulation Complete!\n")
             print(raw)
         elif "Cannot perform" in raw or "dialog" in raw:
