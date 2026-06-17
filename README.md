@@ -26,6 +26,20 @@ An open-source **Autodesk Fusion 360 simulation suite** that programmatically bu
 
 This project brings the legendary Autobots leader from the **Transformers** franchise to life — from the 1984 **Generation 1** animated series and the live-action movie designs — as the **first fully working 3D-printable CAD model** of Optimus Prime with complete **servo-driven kinematic simulation**, **robot-to-truck transformation**, and **FDM-printable hardware integration**.
 
+## Quick Start
+
+```bash
+# 1. Enable MCP: Fusion 360 → Tools → Scripts & Add-Ins → MCP Server → Run
+# 2. Clone and run:
+git clone https://github.com/itsPremkumar/Optimus_Prime.git
+cd Optimus_Prime
+python src/run_simulation.py --module robot --capture
+```
+
+> **Done.** The robot builds, assumes the standing pose, and saves 6 screenshots to `output/screenshots/`. See [Setup & Running](#setup--running) for details.
+
+---
+
 ### Truck Mode — Multi-Angle Renders
 
 | Front | Back | Left |

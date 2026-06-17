@@ -96,11 +96,17 @@ SKIP_TAGS  = {"Marker", "Pivot", "MtA", "MtB", "Axle_Pivot", "Horn", "Pin", "_Vi
 # ═════════════════════════════════════════════════════════════════════════════
 
 class Logger:
+    """Buffered logger that writes timestamped messages to both stdout and the log file.
+    Flushes to disk every 20 messages for crash safety."""
     _buffer = []
     _count  = 0
 
     @classmethod
     def log(cls, msg, level="INFO"):
+        """Append a timestamped message to the log buffer and print to stdout.
+        Args:
+            msg: Log message string.
+            level: Severity label (INFO, WARN, ERROR)."""
         ts   = datetime.datetime.now().strftime("%H:%M:%S")
         line = f"[{ts}] [{level}] {msg}\n"
         safe = line.encode("ascii", "replace").decode("ascii")
@@ -112,6 +118,7 @@ class Logger:
 
     @classmethod
     def flush(cls):
+        """Write all buffered log entries to the log file on disk and clear the buffer."""
         if not cls._buffer:
             return
         try:
@@ -129,6 +136,9 @@ class Logger:
 # ═════════════════════════════════════════════════════════════════════════════
 
 def run(context):
+    """Main entry point called by Fusion 360's MCP executor.
+    Builds the full Optimus Prime G1 model, applies joints,
+    runs the selected simulation module, and exports results."""
     global TARGET_MODULE, EXPORT_STL, EXPORT_URDF, EXPORT_DIR
 
     app = None
@@ -163,6 +173,7 @@ def run(context):
                 break
 
         def _copy_ap(query):
+            """Search the appearance library for a material name and return a copy."""
             if not app_lib:
                 return None
             for i in range(app_lib.appearances.count):
@@ -175,6 +186,7 @@ def run(context):
             return None
 
         def get_ap(primary, *fallbacks):
+            """Get an appearance by name, trying fallbacks if the primary is not found."""
             ap = _copy_ap(primary)
             if ap:
                 return ap
@@ -204,6 +216,7 @@ def run(context):
         occs       = {}
 
         def new_component(name):
+            """Create a new occurrence under the root component and register it."""
             occ  = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
             comp = occ.component
             comp.name = name
@@ -212,6 +225,7 @@ def run(context):
             return comp
 
         def set_ap(body, ap):
+            """Safely assign a Fusion 360 appearance to a body."""
             if body and ap:
                 try:
                     body.appearance = ap
@@ -219,6 +233,7 @@ def run(context):
                     pass
 
         def box(comp, name, cx, cy, cz, lx, ly, lz, ap=None):
+            """Create a rectangular box primitive. cx,y,z = centre; lx,y,z = dimensions."""
             temp  = adsk.fusion.TemporaryBRepManager.get()
             obb   = adsk.core.OrientedBoundingBox3D.create(
                         adsk.core.Point3D.create(cx, cy, cz),
@@ -235,6 +250,7 @@ def run(context):
             return body
 
         def cyl(comp, name, cx, cy, cz, r, h, axis, ap=None):
+            """Create a cylinder primitive. r=radius, h=height, axis=x|y|z."""
             temp = adsk.fusion.TemporaryBRepManager.get()
             ax   = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
             p1   = adsk.core.Point3D.create(cx - ax[0]*h/2, cy - ax[1]*h/2, cz - ax[2]*h/2)
@@ -249,6 +265,7 @@ def run(context):
             return body
 
         def cone_shape(comp, name, cx, cy, cz, r1, r2, h, axis, ap=None):
+            """Create a cone or tapered cylinder. r1=base radius, r2=top radius, h=height."""
             temp  = adsk.fusion.TemporaryBRepManager.get()
             ax    = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
             p1    = adsk.core.Point3D.create(cx - ax[0]*h/2, cy - ax[1]*h/2, cz - ax[2]*h/2)
@@ -263,12 +280,16 @@ def run(context):
             return body
 
         def marker(comp, name, cx, cy, cz, size=0.22):
+            """Create a small white reference cube at the given position (joint origin marker)."""
             return box(comp, name, cx, cy, cz, size, size, size, white_pla)
 
         # ── Boolean cavity cutter ─────────────────────────────────────────
         # FIX 3: Snapshot comp.bRepBodies with list() before iterating so that
         #         combine operations cannot mutate the collection mid-loop.
         def cut_cavity(comp, tool_body, keep_tool=False):
+            """Perform a boolean cut of tool_body against all other bodies in the component.
+            Args:
+                keep_tool: If False, hide the tool body after cutting."""
             tools = adsk.core.ObjectCollection.create()
             tools.add(tool_body)
             for b in list(comp.bRepBodies):          # ← FIX 3: list() snapshot
@@ -293,6 +314,7 @@ def run(context):
 
         # ── Shell splitter for FDM printing ───────────────────────────────
         def split_halves(comp, body, axis="y", offset=0.0):
+            """Split a body in half along a construction plane for FDM 3D printing."""
             try:
                 planes = comp.constructionPlanes
                 pi     = planes.createInput()
@@ -308,12 +330,15 @@ def run(context):
 
         # ── Fastener helpers ──────────────────────────────────────────────
         def screw_hole(comp, cx, cy, cz, axis="y", length=3.0):
+            """Cut an M3 screw clearance hole (radius 0.15) at the given position."""
             cut_cavity(comp, cyl(comp, "ScrewHole", cx, cy, cz, 0.15, length, axis))
 
         def magnet_pocket(comp, tag, cx, cy, cz, axis="z"):
+            """Cut a cylindrical magnet pocket (radius 0.32, height 0.35) at position."""
             cut_cavity(comp, cyl(comp, f"{tag}_MagPkt", cx, cy, cz, 0.32, 0.35, axis))
 
         def wire_channel(comp, tag, cx, cy, cz, r, h, axis):
+            """Cut a cylindrical wire-routing channel through the component."""
             cut_cavity(comp, cyl(comp, f"{tag}_Wire", cx, cy, cz, r, h, axis))
 
         # ─────────────────────────────────────────────────────────────────
@@ -321,6 +346,7 @@ def run(context):
         # ─────────────────────────────────────────────────────────────────
 
         def _make_joint_geometry(cx, cy, cz):
+            """Create a joint geometry point — tries ConstructionPoint first, falls back to SketchPoint."""
             # Try construction points first (native Fusion)
             try:
                 cpi = root.constructionPoints.createInput()
@@ -340,6 +366,7 @@ def run(context):
                 return None
 
         def revolute_joint(name, occ1, occ2, cx, cy, cz, axis_str):
+            """Create an as-built revolute (hinge) joint between two occurrences."""
             if not (occ1 and occ2):
                 return
             try:
@@ -356,6 +383,7 @@ def run(context):
                 Logger.log(f"Failed revolute joint {name}: {traceback.format_exc()}", "ERROR")
 
         def ball_joint(name, occ1, occ2, cx, cy, cz):
+            """Create an as-built ball joint (3-DOF spherical) between two occurrences."""
             if not (occ1 and occ2):
                 return
             try:
@@ -370,6 +398,7 @@ def run(context):
                 Logger.log(f"Failed ball joint {name}: {traceback.format_exc()}", "ERROR")
 
         def rigid_joint(name, occ1, occ2):
+            """Create a rigid (fixed) joint between two occurrences — no relative motion."""
             if not (occ1 and occ2):
                 return
             try:
@@ -385,6 +414,8 @@ def run(context):
         # MECHANICAL MODULES
         # ─────────────────────────────────────────────────────────────────
         def servo_hardware(comp, tag, cx, cy, cz, axis, mg996):
+            """Add mounting flange screw holes and horn screw holes for a servo motor.
+            mg996: True for MG996R dimensions, False for MG90S."""
             if mg996:
                 fd, fw, hr, pd, sd = 2.4, 0.5, 0.7, 0.125, 0.15
                 if axis == "x":
@@ -432,6 +463,7 @@ def run(context):
                 cut_cavity(comp, c2)
 
         def mg996r(comp, tag, cx, cy, cz, axis="x"):
+            """Create a visual MG996R servo (body, ears, horn), cut cavity, and add hardware mounts."""
             cl = CLEARANCE
             if axis == "x":
                 box(comp, f"{tag}_VisBody", cx,       cy,      cz,       4.05, 2.00, 4.20, grey_plastic)
@@ -457,6 +489,7 @@ def run(context):
             servo_hardware(comp, tag, cx, cy, cz, axis, True)
 
         def mg90s(comp, tag, cx, cy, cz, axis="x"):
+            """Create a visual MG90S micro servo (body, ears, horn), cut cavity, and add hardware mounts."""
             cl = CLEARANCE
             if axis == "x":
                 box(comp, f"{tag}_VisBody", cx,       cy,      cz,       2.30, 1.20, 2.30, op_blue)
@@ -482,6 +515,8 @@ def run(context):
             servo_hardware(comp, tag, cx, cy, cz, axis, False)
 
         def tt_wheel(comp, tag, cx, cy, cz, side=1):
+            """Create a TT gear-motor wheel assembly (gearbox, motor, shaft, hub, tire, rim).
+            side: +1 for right-facing, -1 for left-facing."""
             cl = CLEARANCE
             box(comp, f"{tag}_VisGB",    cx,         cy,    cz,   2.30, 5.20, 1.90, yellow_met)
             cyl(comp, f"{tag}_VisMot",   cx,         cy-1.5, cz,  0.90, 2.10, "y",  chrome)
@@ -499,6 +534,8 @@ def run(context):
         #         are offset symmetrically by ±(w/2 + 0.05) so the cavity is
         #         centred on (cx, cy, cz), matching the visible bearing rings.
         def bearing(comp, tag, cx, cy, cz, axis="x", ro=1.10, w=0.60):
+            """Create a rolling bearing (outer ring, inner ring, balls) with centred cavity.
+            ro=outer radius, w=width."""
             cyl(comp, f"{tag}_BO", cx, cy, cz, ro,         w,       axis, chrome)
             cyl(comp, f"{tag}_BI", cx, cy, cz, ro*0.58,    w*0.80,  axis, dark_grey)
             cyl(comp, f"{tag}_BB", cx, cy, cz, ro*0.32,    w*1.10,  axis, chrome)
@@ -521,6 +558,7 @@ def run(context):
             cut_cavity(comp, cb)
 
         def u_bracket(comp, tag, cx, cy, cz, lx, ly, lz, ap=None):
+            """Create a U-shaped mounting bracket with pin hole. lx,ly,lz = overall dimensions."""
             ap = ap or chrome
             box(comp, f"{tag}_BB", cx,           cy,          cz, 0.45,      ly,   lz, ap)
             box(comp, f"{tag}_BL", cx+lx*0.45,   cy+ly*0.35,  cz, lx*0.55,  0.40, lz, ap)
@@ -838,6 +876,7 @@ def run(context):
             }
 
             def __init__(self, root, comps_list, design, app, ui):
+                """Initialise the simulation engine with Fusion 360 object references."""
                 self._root   = root
                 self._comps  = comps_list
                 self._design = design
@@ -1048,6 +1087,7 @@ def run(context):
             #         block is retained so the script stays compatible if
             #         Autodesk alters the API in future releases.
             def _interfere(self, label="Interference"):
+                """Run collision/interference detection between all bodies and log results."""
                 try:
                     # ── Primary: correct Fusion 360 interference API ──────
                     all_bodies = adsk.core.ObjectCollection.create()
@@ -1084,6 +1124,7 @@ def run(context):
 
             # ── Module 1: Joint ROM Test ──────────────────────────────────
             def test_joint_rom(self):
+                """Sweep every joint min→centre→max and check for collisions at each extreme."""
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 1 / 9 ---")
                 Logger.log("MODULE 1: JOINT ROM TEST")
@@ -1096,6 +1137,7 @@ def run(context):
 
             # ── Module 2: Head Look-Around ────────────────────────────────
             def simulate_head_scan(self):
+                """Move head through 5 positions: centre, left, right, up, down."""
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 2 / 9 ---")
                 Logger.log("MODULE 2: HEAD LOOK-AROUND")
@@ -1106,6 +1148,7 @@ def run(context):
 
             # ── Module 3: Wave Gesture ────────────────────────────────────
             def simulate_wave(self):
+                """Raise right arm and wave the wrist 3 times."""
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 3 / 9 ---")
                 Logger.log("MODULE 3: WAVE GESTURE")
@@ -1119,6 +1162,7 @@ def run(context):
 
             # ── Module 4: Idle Breathing ──────────────────────────────────
             def simulate_idle_breathing(self):
+                """4-cycle subtle torso oscillation — waist pitch ±3° mimicking breathing."""
                 self.reset_all(steps=8)
                 Logger.log("--- MODULE 4 / 9 ---")
                 Logger.log("MODULE 4: IDLE BREATHING")
@@ -1131,6 +1175,7 @@ def run(context):
             # FIX 5 note: L_Knee and R_Knee are revolute joints and are now
             # handled correctly inside the fixed move_ball().
             def simulate_walking_advanced(self):
+                """4-cycle walking gait with hip sway, arm counter-swing, and ankle push-off."""
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 5 / 9 ---")
                 Logger.log("MODULE 5: ADVANCED WALKING")
@@ -1152,6 +1197,7 @@ def run(context):
 
             # ── Module 6: Running ─────────────────────────────────────────
             def simulate_running(self):
+                """3-cycle running gait with exaggerated joint angles and faster cadence."""
                 self.reset_all(steps=8)
                 Logger.log("--- MODULE 6 / 9 ---")
                 Logger.log("MODULE 6: RUNNING")
@@ -1173,6 +1219,7 @@ def run(context):
 
             # ── Module 7: Combat Sequence ─────────────────────────────────
             def simulate_combat(self):
+                """Combat sequence: right cross → blaster aim → forearm block → left uppercut."""
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 7 / 9 ---")
                 Logger.log("MODULE 7: COMBAT SEQUENCE")
@@ -1255,6 +1302,7 @@ def run(context):
 
             # ── Module 8: Transformation ──────────────────────────────────
             def simulate_transformation(self):
+                """Full transformation cycle: Robot → Truck (with interference check) → Robot."""
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 8a / 9 ---")
                 Logger.log("MODULE 8a: TRANSFORMATION (Robot->Truck)")
@@ -1299,6 +1347,7 @@ def run(context):
 
             # ── Robot Mode ────────────────────────────────────────────────
             def simulate_robot_mode(self):
+                """Reset to standing robot pose with blaster unfolded and capture screenshots."""
                 self.reset_all(steps=10)
                 self.move_joint("Blaster_Fold", 0, steps=10, axis="pitch")
                 Logger.log("--- ROBOT MODE ---")
@@ -1314,6 +1363,7 @@ def run(context):
 
             # ── Truck Mode ────────────────────────────────────────────────
             def simulate_truck_mode(self):
+                """Transform Robot → Truck mode, check interference, and capture screenshots."""
                 self.reset_all(steps=10)
                 Logger.log("--- TRUCK MODE ---")
                 Logger.log("TRANSFORMATION (Robot->Truck) -- holding position")
@@ -1335,6 +1385,7 @@ def run(context):
 
             # ── Battle Mode ───────────────────────────────────────────────
             def simulate_battle_mode(self):
+                """Battle pose — wrists rolled, elbows 130°, shoulders yawed with blaster aimed."""
                 self.reset_all(steps=10)
                 Logger.log("--- BATTLE MODE ---")
                 Logger.log("TRANSFORMATION (Robot->Battle) -- holding position")
@@ -1367,6 +1418,7 @@ def run(context):
             #         Replaced with design.physicalProperties.centerOfMass, which
             #         is the documented API for retrieving the design-wide CoM.
             def run_stability_analysis(self):
+                """Check centre-of-mass stability for 4 poses: Attention, Combat, Squat, Victory."""
                 Logger.log("--- MODULE 9 / 9 ---")
                 Logger.log("MODULE 9a: STABILITY ANALYSIS")
                 poses = {
@@ -1422,6 +1474,7 @@ def run(context):
 
             # ── Module 9b: Servo Load Estimation ─────────────────────────
             def estimate_servo_loads(self):
+                """Estimate torque requirements for each major joint and compare against servo ratings."""
                 Logger.log("MODULE 9b: SERVO LOAD ESTIMATION")
                 loads = [
                     ("Neck Pitch",       120,  3.0,  SERVO_SPECS["micro"]),
@@ -1448,6 +1501,7 @@ def run(context):
 
             # ── URDF Export ───────────────────────────────────────────────
             def export_urdf(self):
+                """Export a URDF skeleton file listing all joints as fixed with parent/child links."""
                 try:
                     os.makedirs(EXPORT_DIR, exist_ok=True)
                     path = os.path.join(EXPORT_DIR, "robot.urdf")
@@ -1475,6 +1529,7 @@ def run(context):
             #           exportMgr.createSTLExportOptions(body, path)
             #           exportMgr.execute(options)
             def export_stl(self):
+                """Export each printable body as a high-refinement binary STL file."""
                 try:
                     os.makedirs(EXPORT_DIR, exist_ok=True)
                     skip       = {"Marker", "Pivot", "MtA", "MtB",
@@ -1504,6 +1559,7 @@ def run(context):
 
             # ── STEP Export ────────────────────────────────────────────────
             def export_step(self):
+                """Export full assembly as a single STEP file plus per-component STEP files."""
                 try:
                     os.makedirs(EXPORT_DIR, exist_ok=True)
                     export_mgr = self._design.exportManager
@@ -1535,6 +1591,7 @@ def run(context):
 
             # ── Screenshot Capture ────────────────────────────────────────
             def capture_screenshots(self, prefix="optimus"):
+                """Capture 6 viewport PNG screenshots (Front, Back, Left, Right, Top, Iso)."""
                 if not CAPTURE_SCREENSHOTS:
                     return
                 try:
@@ -1563,6 +1620,7 @@ def run(context):
 
             # ── Master Runner ─────────────────────────────────────────────
             def run_all_simulations(self):
+                """Master dispatcher — selects and runs the target simulation module, then exports."""
                 dispatch = {
                     "ALL": lambda: [
                         self.test_joint_rom(),
