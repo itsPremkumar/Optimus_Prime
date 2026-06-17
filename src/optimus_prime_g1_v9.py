@@ -5,6 +5,8 @@ if 'TARGET_MODULE' not in globals():
     TARGET_MODULE = "ALL"
 if 'EXPORT_STL' not in globals():
     EXPORT_STL = False
+if 'EXPORT_STEP' not in globals():
+    EXPORT_STEP = False
 if 'EXPORT_URDF' not in globals():
     EXPORT_URDF = False
 if 'CAPTURE_SCREENSHOTS' not in globals():
@@ -1483,6 +1485,37 @@ def run(context):
                 except Exception:
                     Logger.log(f"STL export failed: {traceback.format_exc()}", "ERROR")
 
+            # ── STEP Export ────────────────────────────────────────────────
+            def export_step(self):
+                try:
+                    os.makedirs(EXPORT_DIR, exist_ok=True)
+                    export_mgr = self._design.exportManager
+
+                    # Full assembly STEP
+                    path = os.path.join(EXPORT_DIR, "Optimus_Prime_G1_v9.step")
+                    step_opts = export_mgr.createSTEPExportOptions(path)
+                    export_mgr.execute(step_opts)
+                    Logger.log(f"STEP assembly exported -> {path}")
+
+                    # Per-component STEP files
+                    count = 0
+                    for i in range(self._root.allOccurrences.count):
+                        occ = self._root.allOccurrences.item(i)
+                        cname = occ.component.name
+                        skip_tags = {"Marker", "Pivot", "_Vis"}
+                        if any(t in cname for t in skip_tags):
+                            continue
+                        try:
+                            cpath = os.path.join(EXPORT_DIR, f"{cname}.step")
+                            copts = export_mgr.createSTEPExportOptions(occ, cpath)
+                            export_mgr.execute(copts)
+                            count += 1
+                        except Exception:
+                            Logger.log(f"STEP fail: {cname}", "WARN")
+                    Logger.log(f"STEP exported {count} components -> {EXPORT_DIR}")
+                except Exception:
+                    Logger.log(f"STEP export failed: {traceback.format_exc()}", "ERROR")
+
             # ── Screenshot Capture ────────────────────────────────────────
             def capture_screenshots(self, prefix="optimus"):
                 if not CAPTURE_SCREENSHOTS:
@@ -1553,6 +1586,8 @@ def run(context):
                     self.export_urdf()
                 if EXPORT_STL:
                     self.export_stl()
+                if EXPORT_STEP:
+                    self.export_step()
 
                 # Final report
                 Logger.log("=" * 50)
