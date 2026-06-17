@@ -48,11 +48,11 @@ This project brings the legendary Autobots leader from the **Transformers** fran
 
 ### Demo Videos
 
-<video src="videos/Optimus_Prime_Transformation.mp4" controls width="100%" title="Optimus Prime - Transformation Sequence"></video>
+![Transformation Sequence](videos/Optimus_Prime_Transformation.gif)
 
-| Truck Mode | Robot Mode |
-|------------|------------|
-| <video src="videos/Optimus_Prime_Truck_Mode.mp4" controls width="100%" title="Optimus Prime - Truck Mode"></video> | <video src="videos/Optimus_Prime_Robot_Mode.mp4" controls width="100%" title="Optimus Prime - Robot Mode"></video> |
+| Transformation | Truck Mode | Robot Mode |
+|----------------|------------|------------|
+| <video src="videos/Optimus_Prime_Transformation.mp4" controls width="100%" title="Optimus Prime - Transformation"></video> | <video src="videos/Optimus_Prime_Truck_Mode.mp4" controls width="100%" title="Optimus Prime - Truck Mode"></video> | <video src="videos/Optimus_Prime_Robot_Mode.mp4" controls width="100%" title="Optimus Prime - Robot Mode"></video> |
 
 ---
 
