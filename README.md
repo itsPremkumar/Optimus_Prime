@@ -24,7 +24,15 @@
 
 An open-source **Autodesk Fusion 360 simulation suite** that programmatically builds a fully-articulated, **3D-printable Optimus Prime G1** robot and runs a **9-module kinematic simulation** — all driven remotely via the **Model Context Protocol (MCP)**.
 
-![Optimus Prime G1 3D model rendered in Fusion 360](images/Screenshot%202026-06-15%20230823.png)
+### Truck Mode — Multi-Angle Renders
+
+| Front | Back | Left |
+|-------|------|------|
+| ![Front](images/optimus_truck_Front.png) | ![Back](images/optimus_truck_Back.png) | ![Left](images/optimus_truck_Left.png) |
+
+| Right | Top | Isometric |
+|-------|-----|-----------|
+| ![Right](images/optimus_truck_Right.png) | ![Top](images/optimus_truck_Top.png) | ![Isometric](images/optimus_truck_Iso.png) |
 
 ---
 
@@ -125,6 +133,8 @@ python src/capture_optimus.py
 ```
 
 Saves 6 viewport renders (Front, Back, Left, Right, Top, Isometric) to `images/`.
+
+Truck mode renders: `optimus_truck_Front.png`, `optimus_truck_Back.png`, `optimus_truck_Left.png`, `optimus_truck_Right.png`, `optimus_truck_Top.png`, `optimus_truck_Iso.png`.
 
 ---
 
