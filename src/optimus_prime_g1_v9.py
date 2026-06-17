@@ -61,10 +61,14 @@
 
 # These values are overridden by run_simulation.py when sent via MCP.
 # Keep defaults here for standalone execution or if the override fails.
-TARGET_MODULE      = "ALL"
-EXPORT_STL         = False
-EXPORT_URDF        = False
-CAPTURE_SCREENSHOTS = False
+if 'TARGET_MODULE' not in globals():
+    TARGET_MODULE = "ALL"
+if 'EXPORT_STL' not in globals():
+    EXPORT_STL = False
+if 'EXPORT_URDF' not in globals():
+    EXPORT_URDF = False
+if 'CAPTURE_SCREENSHOTS' not in globals():
+    CAPTURE_SCREENSHOTS = False
 
 import adsk.core
 import adsk.fusion
