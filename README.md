@@ -44,6 +44,12 @@ An open-source **Autodesk Fusion 360 simulation suite** that programmatically bu
 |-------|-----|-----------|
 | ![Right](images/optimus_robot_Right.png) | ![Top](images/optimus_robot_Top.png) | ![Isometric](images/optimus_robot_Iso.png) |
 
+### Demo Videos
+
+| Transformation | Truck Mode | Robot Mode |
+|----------------|------------|------------|
+| [![Transformation](https://img.shields.io/badge/Watch-Transformation-red)](videos/Optimus_Prime_Transformation.mp4) | [![Truck Mode](https://img.shields.io/badge/Watch-Truck_Mode-blue)](videos/Optimus_Prime_Truck_Mode.mp4) | [![Robot Mode](https://img.shields.io/badge/Watch-Robot_Mode-green)](videos/Optimus_Prime_Robot_Mode.mp4) |
+
 ---
 
 ## What Is This?
@@ -112,6 +118,7 @@ Optimus_Prime/
 ├── archive/                       # Archived legacy versions
 │   └── optimus_prime_simulation_v6.py
 ├── images/                        # Saved viewport screenshots
+├── videos/                        # Demo videos (transformation, truck mode, robot mode)
 ├── .github/                       # GitHub issue/PR templates
 ├── CHANGELOG.md                   # Version history
 ├── CODE_OF_CONDUCT.md             # Community standards

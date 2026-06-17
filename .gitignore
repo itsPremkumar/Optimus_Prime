@@ -27,6 +27,10 @@ C:\OptimusPrime_STL/
 *.stl
 *.urdf
 
+# Videos
+# *.mp4
+# *.webm
+
 # Captures
 capture.png
 
