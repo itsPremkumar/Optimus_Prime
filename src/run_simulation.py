@@ -58,7 +58,7 @@ def find_fusion_launcher():
 FUSION_EXE = find_fusion_launcher()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PAYLOAD_FILE = os.path.join(BASE_DIR, "optimus_prime_g1_v9.py")
+PAYLOAD_FILE = os.path.join(BASE_DIR, "optimus_prime_v12.py")
 
 _rpc_id = 0
 session_id = None

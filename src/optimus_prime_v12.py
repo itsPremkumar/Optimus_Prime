@@ -1129,62 +1129,69 @@ def run(context):
 
         def write_production_readiness_report(check_rows=None):
             """Write the final V12 production-readiness checklist."""
+            Logger.log(f"write_production_readiness_report: PRODUCTION_REPORT={PRODUCTION_REPORT}, PRODUCTION_FILE={PRODUCTION_FILE}", "INFO")
             if not PRODUCTION_REPORT:
+                Logger.log("write_production_readiness_report: PRODUCTION_REPORT is False, skipping", "WARN")
                 return
-            try:
-                os.makedirs(os.path.dirname(PRODUCTION_FILE), exist_ok=True)
-                check_rows = check_rows or []
+            written = False
+            for attempt, filepath in enumerate([PRODUCTION_FILE, os.path.join(EXPORT_DIR, f"PRODUCTION_READINESS_v12_{_ts}.txt")]):
                 try:
-                    joint_count = root.asBuiltJoints.count
-                except Exception:
-                    joint_count = -1
-                with open(PRODUCTION_FILE, "w", encoding="utf-8") as f:
-                    f.write("OPTIMUS PRIME G1 v12.0 PRODUCTION READINESS\n")
-                    f.write("=" * 56 + "\n\n")
-                    f.write("Generated from the live Fusion 360 build script.\n\n")
-                    f.write("MODEL SUMMARY\n")
-                    f.write(f"  Components: {len(comps_list)}\n")
-                    f.write(f"  As-built joints: {joint_count}\n")
-                    f.write(f"  BOM rows: {len(BOM._rows)}\n")
-                    f.write(f"  Registered screw locations: {len(SCREW_REGISTRY)}\n")
-                    f.write(f"  Assembly jigs: {len(JIG_REGISTRY)}\n")
-                    f.write(f"  Support warnings: {len(SUPPORT_WARNINGS)}\n\n")
-                    f.write("SIMULATION / CAD CHECKS\n")
-                    if check_rows:
-                        for label, count in check_rows:
-                            if count == 0:
-                                status = "PASS"
-                            elif count > 0:
-                                status = "WARN"
-                            else:
-                                status = "N/A"
-                            f.write(f"  {label:<38s} {status:>5s}  {count}\n")
-                    else:
-                        f.write("  No runtime check rows were reported.\n")
-                    f.write("\nMANUFACTURING BASELINE\n")
-                    f.write(f"  FDM clearance: {CLEARANCE:.3f} cm\n")
-                    f.write(f"  Structural wall: {WALL_S:.3f} cm\n")
-                    f.write(f"  Partition wall: {WALL_P:.3f} cm\n")
-                    f.write("  Structural material: PETG / ABS+ or stronger\n")
-                    f.write("  Cosmetic material: PLA+ acceptable for non-load covers\n")
-                    f.write("  Flexible material: TPU 95A for tires, gaskets, dampers\n\n")
-                    f.write("REQUIRED PHYSICAL ACCEPTANCE TESTS\n")
-                    f.write("  1. Dry-fit every shell half before installing electronics.\n")
-                    f.write("  2. Press-fit bearings with no visible shell cracking.\n")
-                    f.write("  3. Verify every servo moves through ROM with power current limited.\n")
-                    f.write("  4. Validate hip, knee, ankle, shoulder, and waist hard stops by hand.\n")
-                    f.write("  5. Confirm transformer locks engage in robot and truck mode.\n")
-                    f.write("  6. Run 30 minute tethered burn-in before untethered battery tests.\n")
-                    f.write("  7. Re-check fasteners after the first three transform cycles.\n\n")
-                    f.write("OUTPUTS\n")
-                    f.write(f"  Manifest: {MANIFEST_FILE}\n")
-                    f.write(f"  BOM: {BOM_FILE}\n")
-                    f.write(f"  Assembly guide: {ASSEMBLY_FILE}\n")
-                    f.write(f"  Exports: {EXPORT_DIR}\n")
-                    f.write(f"  Screenshots: {SCREENSHOT_DIR}\n")
-                Logger.log(f"Production readiness report written -> {PRODUCTION_FILE}")
-            except Exception as e:
-                Logger.log(f"Production readiness report failed: {e}", "WARN")
+                    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                    check_rows = check_rows or []
+                    try:
+                        joint_count = root.asBuiltJoints.count
+                    except Exception:
+                        joint_count = -1
+                    with open(filepath, "w", encoding="utf-8") as f:
+                        f.write("OPTIMUS PRIME G1 v12.0 PRODUCTION READINESS\n")
+                        f.write("=" * 56 + "\n\n")
+                        f.write("Generated from the live Fusion 360 build script.\n\n")
+                        f.write("MODEL SUMMARY\n")
+                        f.write(f"  Components: {len(comps_list)}\n")
+                        f.write(f"  As-built joints: {joint_count}\n")
+                        f.write(f"  BOM rows: {len(BOM._rows)}\n")
+                        f.write(f"  Registered screw locations: {len(SCREW_REGISTRY)}\n")
+                        f.write(f"  Assembly jigs: {len(JIG_REGISTRY)}\n")
+                        f.write(f"  Support warnings: {len(SUPPORT_WARNINGS)}\n\n")
+                        f.write("SIMULATION / CAD CHECKS\n")
+                        if check_rows:
+                            for label, count in check_rows:
+                                if count == 0:
+                                    status = "PASS"
+                                elif count > 0:
+                                    status = "WARN"
+                                else:
+                                    status = "N/A"
+                                f.write(f"  {label:<38s} {status:>5s}  {count}\n")
+                        else:
+                            f.write("  No runtime check rows were reported.\n")
+                        f.write("\nMANUFACTURING BASELINE\n")
+                        f.write(f"  FDM clearance: {CLEARANCE:.3f} cm\n")
+                        f.write(f"  Structural wall: {WALL_S:.3f} cm\n")
+                        f.write(f"  Partition wall: {WALL_P:.3f} cm\n")
+                        f.write("  Structural material: PETG / ABS+ or stronger\n")
+                        f.write("  Cosmetic material: PLA+ acceptable for non-load covers\n")
+                        f.write("  Flexible material: TPU 95A for tires, gaskets, dampers\n\n")
+                        f.write("REQUIRED PHYSICAL ACCEPTANCE TESTS\n")
+                        f.write("  1. Dry-fit every shell half before installing electronics.\n")
+                        f.write("  2. Press-fit bearings with no visible shell cracking.\n")
+                        f.write("  3. Verify every servo moves through ROM with power current limited.\n")
+                        f.write("  4. Validate hip, knee, ankle, shoulder, and waist hard stops by hand.\n")
+                        f.write("  5. Confirm transformer locks engage in robot and truck mode.\n")
+                        f.write("  6. Run 30 minute tethered burn-in before untethered battery tests.\n")
+                        f.write("  7. Re-check fasteners after the first three transform cycles.\n\n")
+                        f.write("OUTPUTS\n")
+                        f.write(f"  Manifest: {MANIFEST_FILE}\n")
+                        f.write(f"  BOM: {BOM_FILE}\n")
+                        f.write(f"  Assembly guide: {ASSEMBLY_FILE}\n")
+                        f.write(f"  Exports: {EXPORT_DIR}\n")
+                        f.write(f"  Screenshots: {SCREENSHOT_DIR}\n")
+                    Logger.log(f"Production readiness report written -> {filepath}")
+                    written = True
+                except Exception as e:
+                    Logger.log(f"Production readiness report attempt {attempt+1} failed: {e}", "WARN")
+            if not written:
+                Logger.log("PRODUCTION READINESS REPORT: all write attempts failed", "ERROR")
 
         # ─────────────────────────────────────────────────────────────────
         # ELECTRONICS BAY HELPERS  (ELEC-1 … ELEC-6  + V12 covers)
@@ -2347,7 +2354,7 @@ def run(context):
                 for i in range(1, steps + 1):
                     t = self._ease(i / steps)
                     for mo, axis, s_rad, e_rad in active:
-                        self._set(mo, ax, s_rad + (e_rad - s_rad) * t)
+                        self._set(mo, axis, s_rad + (e_rad - s_rad) * t)
                     self._refresh()
 
             def reset_all(self, steps=10, groups=None):
