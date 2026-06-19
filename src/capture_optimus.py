@@ -279,6 +279,7 @@ def run(context):
 
     # 5. Interpret result
     if res:
+        print(f"MCP Response: {json.dumps(res, indent=2)}")
         err = _get_error(res)
         if err:
             print(f"Screenshot capture failed: {err}")

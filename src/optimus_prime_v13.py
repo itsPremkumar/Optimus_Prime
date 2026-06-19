@@ -481,17 +481,22 @@ def run(context):
             cl, cw, ch = cap_map[axis]
             offset = {"x": (lx/2-chamfer/2, 0, 0), "y": (0, ly/2-chamfer/2, 0), "z": (0, 0, lz/2-chamfer/2)}[axis]
             cap = box(comp, f"{name}_Chamfer", cx+offset[0], cy+offset[1], cz+offset[2], cl, cw, ch, ap)
+            
             if main and cap:
-                try:
-                    tools = adsk.core.ObjectCollection.create()
-                    tools.add(cap)
-                    ji = comp.features.combineFeatures.createInput(main, tools)
-                    ji.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
-                    ji.isKeepToolBodies = False
-                    comp.features.combineFeatures.add(ji)
-                    main.name = name
-                except Exception as e:
-                    Logger.log(f"chamfer_box join failed for {name}: {e}", "WARN")
+                main_valid = comp.bRepBodies.itemByName(f"{name}_Base")
+                cap_valid = comp.bRepBodies.itemByName(f"{name}_Chamfer")
+                if main_valid and cap_valid:
+                    try:
+                        tools = adsk.core.ObjectCollection.create()
+                        tools.add(cap_valid)
+                        ji = comp.features.combineFeatures.createInput(main_valid, tools)
+                        ji.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
+                        ji.isKeepToolBodies = False
+                        comp.features.combineFeatures.add(ji)
+                        main_valid.name = name
+                        return main_valid
+                    except Exception as e:
+                        Logger.log(f"chamfer_box join failed for {name}: {e}", "WARN")
             return main
 
         # ── V13 FIX-3: Boolean cavity cutter with specific error logging ──
@@ -499,29 +504,43 @@ def run(context):
             if not tool_body or not tool_body.isValid:
                 Logger.log("cut_cavity: invalid tool body", "WARN")
                 return False
-            tools = adsk.core.ObjectCollection.create()
-            tools.add(tool_body)
-            success = False
+            tool_name = tool_body.name
+            target_names = []
             for b in list(comp.bRepBodies):
                 if b == tool_body:
                     continue
                 if b.name and any(t in b.name for t in SKIP_TAGS):
                     continue
+                target_names.append(b.name)
+            
+            success = False
+            for t_name in target_names:
+                t_body = comp.bRepBodies.itemByName(t_name)
+                current_tool = comp.bRepBodies.itemByName(tool_name)
+                if not t_body or not t_body.isValid:
+                    continue
+                if not current_tool or not current_tool.isValid:
+                    continue
+                tools = adsk.core.ObjectCollection.create()
+                tools.add(current_tool)
                 try:
-                    ci = comp.features.combineFeatures.createInput(b, tools)
+                    ci = comp.features.combineFeatures.createInput(t_body, tools)
                     ci.operation        = adsk.fusion.FeatureOperations.CutFeatureOperation
                     ci.isKeepToolBodies = True
                     comp.features.combineFeatures.add(ci)
                     success = True
                 except Exception as e:
-                    Logger.log(f"cut_cavity failed on {b.name}: {e}", "DEBUG")
+                    Logger.log(f"cut_cavity failed on {t_name}: {e}", "DEBUG")
+            
             if not keep_tool:
-                try:
-                    tool_body.isLightBulbOn = False
-                    if "_Vis" not in tool_body.name:
-                        tool_body.name += "_Vis"
-                except Exception:
-                    pass
+                current_tool = comp.bRepBodies.itemByName(tool_name)
+                if current_tool and current_tool.isValid:
+                    try:
+                        current_tool.isLightBulbOn = False
+                        if "_Vis" not in current_tool.name:
+                            current_tool.name += "_Vis"
+                    except Exception:
+                        pass
             return success
 
         # ── Shell splitter for FDM printing ───────────────────────────────
@@ -555,6 +574,10 @@ def run(context):
             """MFG-1 — After split, merge Pin/Boss/Insert/Nut/Snap bodies to
             the nearest shell half based on position relative to split plane."""
             fastener_tags = {"Pin", "Boss", "Insert", "Nut", "Snap"}
+            left_name = body_left.name if body_left and body_left.isValid else None
+            right_name = body_right.name if body_right and body_right.isValid else None
+            
+            fasteners_to_merge = []
             for b in list(comp.bRepBodies):
                 if not b.name or any(skip in b.name for skip in {"_Vis", "Marker", "Pivot", "MtA", "MtB", "Axle_Pivot", "Horn"}):
                     continue
@@ -563,20 +586,27 @@ def run(context):
                 try:
                     cog = b.physicalProperties.centerOfMass
                     pos = cog.y if axis == "y" else cog.z if axis == "z" else cog.x
-                    target = None
-                    if body_left and body_left.isValid and pos < 0:
-                        target = body_left
-                    elif body_right and body_right.isValid and pos > 0:
-                        target = body_right
-                    if target:
-                        tools = adsk.core.ObjectCollection.create()
-                        tools.add(b)
-                        ci = comp.features.combineFeatures.createInput(target, tools)
-                        ci.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
-                        ci.isKeepToolBodies = False
-                        comp.features.combineFeatures.add(ci)
+                    if left_name and pos < 0:
+                        fasteners_to_merge.append((b.name, left_name))
+                    elif right_name and pos > 0:
+                        fasteners_to_merge.append((b.name, right_name))
+                except Exception:
+                    pass
+
+            for f_name, t_name in fasteners_to_merge:
+                f_body = comp.bRepBodies.itemByName(f_name)
+                t_body = comp.bRepBodies.itemByName(t_name)
+                if not f_body or not f_body.isValid or not t_body or not t_body.isValid:
+                    continue
+                try:
+                    tools = adsk.core.ObjectCollection.create()
+                    tools.add(f_body)
+                    ci = comp.features.combineFeatures.createInput(t_body, tools)
+                    ci.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
+                    ci.isKeepToolBodies = False
+                    comp.features.combineFeatures.add(ci)
                 except Exception as e:
-                    Logger.log(f"merge_fastener failed for {b.name}: {e}", "DEBUG")
+                    Logger.log(f"merge_fastener failed for {f_name}: {e}", "DEBUG")
 
         # ── V13: Printability check ───────────────────────────────────────
         def printability_check(comp, body_name, overhang_angle_deg=45):
@@ -600,7 +630,7 @@ def run(context):
         # PHYSICAL FEATURE HELPERS  (PHY-1 … PHY-11  +  V13 fixes)
         # ─────────────────────────────────────────────────────────────────
 
-        def m3_boss(comp, tag, cx, cy, cz, axis="z", depth=0.80, screw_len=1.0):
+        def m3_boss(comp, tag, cx, cy, cz, axis="z", depth=0.80, screw_len=1.2):
             """PHY-1 — Ø7 mm boss + Ø4.7 mm insert pocket. V13: exact geometry logged."""
             boss = cyl(comp, f"{tag}_Boss", cx, cy, cz, BOSS_R, depth, axis, dark_metal)
             if boss:
@@ -2196,7 +2226,8 @@ def run(context):
                     jointed_comps.add(j.occurrenceTwo.component.name)
             for comp in comps_list:
                 if comp.name not in ("OP_Torso", "OP_Pelvis") and comp.name not in jointed_comps:
-                    orphans.append(comp.name)
+                    if not comp.name.startswith("JIG_"):
+                        orphans.append(comp.name)
             if orphans:
                 Logger.log(f"  !!! ORPHANS: {orphans}", "WARN")
             else:

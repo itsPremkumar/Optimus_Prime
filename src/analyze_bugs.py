@@ -2,7 +2,7 @@ import os, re, sys
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-with open('optimus_prime_g1_v8.py', 'r', encoding='utf-8') as f:
+with open('optimus_prime_v13.py', 'r', encoding='utf-8') as f:
     lines = f.readlines()
 
 issues = []
