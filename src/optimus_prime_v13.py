@@ -486,7 +486,7 @@ def run(context):
                     tools = adsk.core.ObjectCollection.create()
                     tools.add(cap)
                     ji = comp.features.combineFeatures.createInput(main, tools)
-                    ji.operation = adsk.fusion.CombineOperation.JoinFeatureOperation
+                    ji.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
                     ji.isKeepToolBodies = False
                     comp.features.combineFeatures.add(ji)
                     main.name = name
@@ -509,7 +509,7 @@ def run(context):
                     continue
                 try:
                     ci = comp.features.combineFeatures.createInput(b, tools)
-                    ci.operation        = adsk.fusion.CombineOperation.CutFeatureOperation
+                    ci.operation        = adsk.fusion.FeatureOperations.CutFeatureOperation
                     ci.isKeepToolBodies = True
                     comp.features.combineFeatures.add(ci)
                     success = True
@@ -572,7 +572,7 @@ def run(context):
                         tools = adsk.core.ObjectCollection.create()
                         tools.add(b)
                         ci = comp.features.combineFeatures.createInput(target, tools)
-                        ci.operation = adsk.fusion.CombineOperation.JoinFeatureOperation
+                        ci.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
                         ci.isKeepToolBodies = False
                         comp.features.combineFeatures.add(ci)
                 except Exception as e:
@@ -1488,21 +1488,21 @@ def run(context):
             if axis == "x":
                 box(comp, f"{tag}_VisBody", cx,      cy,      cz,      4.05, 2.00, 4.20, grey_plastic)
                 box(comp, f"{tag}_VisEars", cx+0.95, cy,      cz,      0.30, 2.20, 5.80, dark_grey)
-                box(comp, f"{tag}_VisHorn", cx+2.40, cy,      cz+1.05, 0.95, 0.22, "x", white_pla)
+                cyl(comp, f"{tag}_VisHorn", cx+2.40, cy,      cz+1.05, 0.95, 0.22, "x", white_pla)
                 marker(comp, f"{tag}_Pivot", cx+2.40, cy,     cz+1.05)
                 cut_cavity(comp, box(comp, f"{tag}_CB",  cx,      cy, cz, 4.05+cl, 2.00+cl, 4.20+cl))
                 cut_cavity(comp, box(comp, f"{tag}_CE",  cx+0.95, cy, cz, 0.30+cl, 2.20+cl, 5.80+cl))
             elif axis == "z":
                 box(comp, f"{tag}_VisBody", cx,      cy,      cz,      4.05, 2.00, 4.20, grey_plastic)
                 box(comp, f"{tag}_VisEars", cx,      cy,      cz+0.95, 5.80, 2.20, 0.30, dark_grey)
-                box(comp, f"{tag}_VisHorn", cx-1.10, cy,      cz+2.40, 0.95, 0.22, "z", white_pla)
+                cyl(comp, f"{tag}_VisHorn", cx-1.10, cy,      cz+2.40, 0.95, 0.22, "z", white_pla)
                 marker(comp, f"{tag}_Pivot", cx-1.10, cy,     cz+2.40)
                 cut_cavity(comp, box(comp, f"{tag}_CB", cx, cy, cz,      4.05+cl, 2.00+cl, 4.20+cl))
                 cut_cavity(comp, box(comp, f"{tag}_CE", cx, cy, cz+0.95, 5.80+cl, 2.20+cl, 0.30+cl))
             else:
                 box(comp, f"{tag}_VisBody", cx,      cy,      cz,      4.05, 4.20, 2.00, grey_plastic)
                 box(comp, f"{tag}_VisEars", cx,      cy+0.95, cz,      4.05, 0.30, 2.20, dark_grey)
-                box(comp, f"{tag}_VisHorn", cx,      cy+2.40, cz+1.05, 0.95, 0.22, "y", white_pla)
+                cyl(comp, f"{tag}_VisHorn", cx,      cy+2.40, cz+1.05, 0.95, 0.22, "y", white_pla)
                 marker(comp, f"{tag}_Pivot", cx,     cy+2.40, cz+1.05)
                 cut_cavity(comp, box(comp, f"{tag}_CB", cx, cy,      cz, 4.05+cl, 4.20+cl, 2.00+cl))
                 cut_cavity(comp, box(comp, f"{tag}_CE", cx, cy+0.95, cz, 4.05+cl, 0.30+cl, 2.20+cl))
@@ -1516,21 +1516,21 @@ def run(context):
             if axis == "x":
                 box(comp, f"{tag}_VisBody", cx,      cy,      cz,      2.30, 1.20, 2.30, op_blue)
                 box(comp, f"{tag}_VisEars", cx+0.45, cy,      cz,      0.20, 1.30, 3.20, op_blue)
-                box(comp, f"{tag}_VisHorn", cx+1.40, cy,      cz+0.50, 0.55, 0.18, "x", white_pla)
+                cyl(comp, f"{tag}_VisHorn", cx+1.40, cy,      cz+0.50, 0.55, 0.18, "x", white_pla)
                 marker(comp, f"{tag}_Pivot", cx+1.40, cy,     cz+0.50)
                 cut_cavity(comp, box(comp, f"{tag}_CB",  cx,      cy, cz, 2.30+cl, 1.20+cl, 2.30+cl))
                 cut_cavity(comp, box(comp, f"{tag}_CE",  cx+0.45, cy, cz, 0.20+cl, 1.30+cl, 3.20+cl))
             elif axis == "z":
                 box(comp, f"{tag}_VisBody", cx,      cy,      cz,      2.30, 1.20, 2.30, op_blue)
                 box(comp, f"{tag}_VisEars", cx,      cy,      cz+0.45, 3.20, 1.30, 0.20, op_blue)
-                box(comp, f"{tag}_VisHorn", cx-0.50, cy,      cz+1.40, 0.55, 0.18, "z", white_pla)
+                cyl(comp, f"{tag}_VisHorn", cx-0.50, cy,      cz+1.40, 0.55, 0.18, "z", white_pla)
                 marker(comp, f"{tag}_Pivot", cx-0.50, cy,     cz+1.40)
                 cut_cavity(comp, box(comp, f"{tag}_CB", cx, cy, cz,      2.30+cl, 1.20+cl, 2.30+cl))
                 cut_cavity(comp, box(comp, f"{tag}_CE", cx, cy, cz+0.45, 3.20+cl, 1.30+cl, 0.20+cl))
             else:
                 box(comp, f"{tag}_VisBody", cx,      cy,      cz,      2.30, 2.30, 1.20, op_blue)
                 box(comp, f"{tag}_VisEars", cx,      cy+0.45, cz,      3.20, 0.20, 1.30, op_blue)
-                box(comp, f"{tag}_VisHorn", cx,      cy+1.40, cz+0.50, 0.55, 0.18, "y", white_pla)
+                cyl(comp, f"{tag}_VisHorn", cx,      cy+1.40, cz+0.50, 0.55, 0.18, "y", white_pla)
                 marker(comp, f"{tag}_Pivot", cx,     cy+1.40, cz+0.50)
                 cut_cavity(comp, box(comp, f"{tag}_CB", cx, cy,      cz, 2.30+cl, 2.30+cl, 1.20+cl))
                 cut_cavity(comp, box(comp, f"{tag}_CE", cx, cy+0.45, cz, 3.20+cl, 0.20+cl, 1.30+cl))
