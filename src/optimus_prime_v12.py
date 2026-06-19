@@ -213,8 +213,8 @@ JOINT_LIMITS = {
     "Neck_Cluster":       {"pitch": (-90,  45), "yaw": (-20,  20), "roll": (-20,  20)},
     "L_Hip_Cluster":      {"pitch": (-30,  30), "yaw": (-95,  95), "roll": (-30,  30)},
     "R_Hip_Cluster":      {"pitch": (-30,  30), "yaw": (-95,  95), "roll": (-30,  30)},
-    "L_Knee":             {"pitch": (  0, 135)},
-    "R_Knee":             {"pitch": (  0, 135)},
+    "L_Knee":             {"pitch": (  0, 135), "yaw": (-25,  25), "roll": (0, 0)},
+    "R_Knee":             {"pitch": (  0, 135), "yaw": (-25,  25), "roll": (0, 0)},
     "L_Ankle_Cluster":    {"pitch": (-20,  20), "yaw": (-30,  95), "roll": (-20,  20)},
     "R_Ankle_Cluster":    {"pitch": (-20,  20), "yaw": (-30,  95), "roll": (-20,  20)},
     "L_Shoulder_Cluster": {"pitch": (-175, 60), "yaw": (-90,  90), "roll": (-90,  90)},
@@ -1777,6 +1777,8 @@ def run(context):
                         "y", 1.00, 0.55, fit_type="press")
             u_bracket(thigh, f"{side}_KnB",  sx, 0, KNEE_CTR+1.5,            3.8, 3.0, 3.0)
             mg996r(thigh, f"{side}_KneP",    sx, 0, KNEE_CTR+1.5,            "x")
+            # V12 EXTRA SERO: second MG996R for knee yaw (up/down motion)
+            mg996r(thigh, f"{side}_KneYaw",  sx+1.2, 0, KNEE_CTR+1.5,        "y")
             # V12 BRG-3: dual bearing for knee (high load)
             dual_bearing(thigh, f"{side}_Knee_Dual", sx, 0, KNEE_CTR,
                          "x", 1.00, 0.55, span=2.60, fit_type="press")
@@ -1789,7 +1791,9 @@ def run(context):
             transform_lock(thigh, f"{side}_KneeLock", sx, -2.5, KNEE_CTR+0.5, "x")
             # V12 MECH-3: hard stops
             hard_stop(thigh, f"{side}_KneeExt", sx, -2.5, KNEE_CTR, "x", 135)
+            hard_stop(thigh, f"{side}_KneeYawMax", sx+1.2, 0, KNEE_CTR, "y", 25)
             BOM.add("Servo", "DS3225MG 25 kg-cm servo (hip pitch)", 1, f"OP_Thigh_{side}")
+            BOM.add("Servo", "MG996R 10 kg-cm servo (knee yaw)", 1, f"OP_Thigh_{side}")
 
             # —— SHIN ——
             shin = new_component(f"OP_Shin_{side}")
@@ -2135,7 +2139,7 @@ def run(context):
             ha = occs.get(f"OP_Hand_{side}")
 
             ball_joint(f"{side}_Hip_Cluster",      th, p,  sx, 0, HIP_JOINT_Z)
-            revolute_joint(f"{side}_Knee",         sn, th, sx, 0, KNEE_CTR+1.5, "x")
+            ball_joint(f"{side}_Knee",             sn, th, sx, 0, KNEE_CTR+1.5)
             ball_joint(f"{side}_Ankle_Cluster",    fo, sn, sx, 0, ANKLE_CTR+2.2)
             ball_joint(f"{side}_Shoulder_Cluster", ua, t,  ax, 0, SHOULDER_CTR)
             revolute_joint(f"{side}_Elbow",        fa, ua, ax, 0, ELBOW_Z,      "x")
@@ -2207,13 +2211,14 @@ def run(context):
             BALL_JOINTS = {
                 "Waist_Cluster", "Neck_Cluster",
                 "L_Hip_Cluster", "R_Hip_Cluster",
+                "L_Knee", "R_Knee",
                 "L_Ankle_Cluster", "R_Ankle_Cluster",
                 "L_Shoulder_Cluster", "R_Shoulder_Cluster",
                 "L_Wrist", "R_Wrist",
                 "L_Thumb_CMC", "R_Thumb_CMC",
             }
             REV_JOINTS = {
-                "L_Knee", "R_Knee", "L_Elbow", "R_Elbow", "Blaster_Fold",
+                "L_Elbow", "R_Elbow", "Blaster_Fold",
                 "L_Pinky_MCP", "L_Ring_MCP", "L_Middle_MCP", "L_Index_MCP",
                 "R_Pinky_MCP", "R_Ring_MCP", "R_Middle_MCP", "R_Index_MCP",
             }
@@ -2583,8 +2588,8 @@ def run(context):
                         ("R_Hip_Cluster",      25*r_sign, 10*r_sign,  5*r_sign),
                         ("L_Shoulder_Cluster",  8*l_sign, 15*l_sign,  5*l_sign),
                         ("R_Shoulder_Cluster",  8*r_sign, 15*r_sign,  5*r_sign),
-                        ("L_Knee",             60,        None,        None),
-                        ("R_Knee",             60,        None,        None),
+                        ("L_Knee",             60,        8*l_sign,   None),
+                        ("R_Knee",             60,        8*r_sign,   None),
                         ("L_Ankle_Cluster",    15*l_sign, None,        8*l_sign),
                         ("R_Ankle_Cluster",    15*r_sign, None,        8*r_sign),
                     ], steps=20)
@@ -2605,8 +2610,8 @@ def run(context):
                         ("R_Hip_Cluster",      30*r_sign, 20*r_sign, 10*r_sign),
                         ("L_Shoulder_Cluster", 15*l_sign, 25*l_sign, 10*l_sign),
                         ("R_Shoulder_Cluster", 15*r_sign, 25*r_sign, 10*r_sign),
-                        ("L_Knee",             95,        None,       None),
-                        ("R_Knee",             95,        None,       None),
+                        ("L_Knee",             95,        12*l_sign,  None),
+                        ("R_Knee",             95,        12*r_sign,  None),
                         ("L_Ankle_Cluster",    25*l_sign, None,       12*l_sign),
                         ("R_Ankle_Cluster",    25*r_sign, None,       12*r_sign),
                     ], steps=14)
@@ -2692,16 +2697,16 @@ def run(context):
                     "Attention": {"Waist_Cluster": (0, 0, 0)},
                     "Combat": {
                         "Waist_Cluster":      (10, 0,   0),
-                        "L_Knee":              45,
-                        "R_Knee":              45,
+                        "L_Knee":             (45, 0,   0),
+                        "R_Knee":             (45, 0,   0),
                         "L_Elbow":             90,
                         "R_Elbow":             90,
                         "R_Shoulder_Cluster": (0,  30, -45),
                     },
                     "Squat": {
                         "Waist_Cluster":  (20, 0,   0),
-                        "L_Knee":          90,
-                        "R_Knee":          90,
+                        "L_Knee":         (90, 5,   0),
+                        "R_Knee":         (90, -5,  0),
                         "L_Hip_Cluster":  (0, -45, 0),
                         "R_Hip_Cluster":  (0, -45, 0),
                     },
@@ -2714,7 +2719,7 @@ def run(context):
                     },
                     "Single_Leg_L": {
                         "L_Hip_Cluster":  (0, 90,  0),
-                        "L_Knee":          90,
+                        "L_Knee":         (90, 10, 0),
                         "Waist_Cluster":  (5, 10, -5),
                     },
                 }
@@ -3149,8 +3154,8 @@ def run(context):
                     ( 3, "R_Hip_Pitch",   "Thigh_R -> HipP (DS3225MG)"),
                     ( 4, "L_Hip_Roll",    "Thigh_L -> HipR (MG996R)"),
                     ( 5, "R_Hip_Roll",    "Thigh_R -> HipR (MG996R)"),
-                    ( 6, "L_Knee",        "Thigh_L -> KneP (MG996R)"),
-                    ( 7, "R_Knee",        "Thigh_R -> KneP (MG996R)"),
+                    ( 6, "L_Knee_Pitch",  "Thigh_L -> KneP (MG996R)"),
+                    ( 7, "R_Knee_Pitch",  "Thigh_R -> KneP (MG996R)"),
                     ( 8, "L_Ankle_Pitch", "Foot_L  -> AnkP (MG996R)"),
                     ( 9, "R_Ankle_Pitch", "Foot_R  -> AnkP (MG996R)"),
                     (10, "L_Ankle_Roll",  "Foot_L  -> AnkR (MG996R)"),
@@ -3176,18 +3181,26 @@ def run(context):
                     (12, "R_Finger_All",  "Hand_R -> FingerServo ch0 (DS04-NFC)"),
                     (13, "R_Thumb",       "Hand_R -> FingerServo ch1 (DS04-NFC)"),
                     (14, "Blaster_Fold",  "Hand_R -> Blaster hinge (MG90S)"),
-                    (15, "SPARE",         "--"),
+                    (15, "L_Knee_Yaw",    "Thigh_L -> KneYaw (MG996R)"),
                 ]
+                wiring3 = [
+                    ( 0, "R_Knee_Yaw",    "Thigh_R -> KneYaw (MG996R) EXTRA PCA9685 #3"),
+                ]
+                # Extra components for knee yaw servo and 3rd PCA9685
+                BOM.add("Electronics", "PCA9685 16-ch servo driver (3rd)", 1, "knee yaw")
+                BOM.add("Servo", "MG996R 10 kg-cm servo (knee yaw)", 2, "knee yaw L+R")
                 for ch, name, loc in wiring:
                     Logger.log(f"  PCA1 ch{ch:02d}  {name:<20s}  <- {loc}")
                 for ch, name, loc in wiring2:
                     Logger.log(f"  PCA2 ch{ch:02d}  {name:<20s}  <- {loc}")
+                for ch, name, loc in wiring3:
+                    Logger.log(f"  PCA3 ch{ch:02d}  {name:<20s}  <- {loc}")
                 Logger.log("--- V12 POWER BUDGET ---")
-                Logger.log("  Servo rail:  2x PCA9685 @ 5V -> ~8A peak (all servos moving)")
+                Logger.log("  Servo rail:  3x PCA9685 @ 5V -> ~9A peak (all servos moving)")
                 Logger.log("  Logic rail:  RPi Zero 2W @ 5V -> ~0.5A")
                 Logger.log("  Camera:      ESP32-CAM @ 5V  -> ~0.25A")
                 Logger.log("  IMU:         MPU-6050 @ 3.3V  -> ~0.01A")
-                Logger.log("  BEC input:   2S LiPo 7.4V -> 5V/5A (x2 for headroom)")
+                Logger.log("  BEC input:   2S LiPo 7.4V -> 5V/5A (x3 for headroom)")
                 Logger.log("  Fuse:        5A blade fuse on servo rail; 2A on logic rail")
 
             # ── Master Runner ─────────────────────────────────────────────
