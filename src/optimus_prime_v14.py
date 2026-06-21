@@ -201,6 +201,35 @@ N_VENT_SLOTS  = 8      # slots per grille panel
 # ── V13: Kept ESP32-CAM dims (still used for BOM reference / backpack) ────────
 ESP32_L, ESP32_W, ESP32_H = 3.80, 2.58, 0.15
 
+# ── V14 NEW: Sensor fusion array (ultrasonic + FSR + ADC) ────────────────────
+US_L, US_W, US_H   = 4.50, 2.10, 1.60   # HC-SR04 ultrasonic body
+US_TXRX_R          = 0.80               # transducer radius
+FSR_SZ             = 0.55               # FSR pad square footprint (0.5")
+FSR_T              = 0.15               # FSR pad pocket depth
+ADS1115_L, ADS1115_W, ADS1115_H = 2.90, 1.50, 0.25   # 16-bit ADC breakout
+
+# ── V14 NEW: AI accelerator bay (Coral TPU / Intel NCS, USB-C) ───────────────
+AI_ACCEL_L, AI_ACCEL_H, AI_ACCEL_W = 6.60, 0.90, 3.20
+AI_ACCEL_USBC_W, AI_ACCEL_USBC_H   = 0.40, 0.20
+
+# ── V14 NEW: Independent servo-rail E-stop ────────────────────────────────────
+ESTOP_R          = 0.45   # 22mm mushroom E-stop button radius
+ESTOP_COLLAR_R   = 0.55   # panel-mount collar radius
+
+# ── V14 NEW: Status RGB indicator (WS2812 single-pixel, chest badge) ─────────
+STATUS_RGB_R     = 0.30
+
+# ── V14 NEW: Visual comm backbone (I2C/UART/SPI trunk down the spine) ────────
+COMM_TRUNK_R     = 0.35   # overall trunk channel radius
+COMM_I2C_R       = 0.08
+COMM_UART_R      = 0.08
+COMM_SPI_R       = 0.12
+
+# ── V14 NEW: Knee-yaw servo/bearing geometry (MECH-V14-1) ─────────────────────
+KNEE_YAW_OFFSET_X = 1.20   # X-offset of the yaw servo from the knee centerline
+KNEE_YAW_BRG_R    = 0.85   # bearing outer radius for the yaw axis
+KNEE_YAW_BRG_W    = 0.50
+
 # ── Finger geometry ───────────────────────────────────────────────────────────
 FING_W=0.52; FING_H=0.48; FING_GAP=0.10; THUMB_W=0.65; THUMB_H=0.58
 FING_PP=[1.40,1.60,1.70,1.55]; FING_MP=[1.00,1.20,1.30,1.15]
@@ -263,11 +292,14 @@ SUPPORT_WARNINGS= []
 # ── V13 Communication map registry ────────────────────────────────────────────
 COMM_MAP = []   # list of {from, to, bus, speed, purpose}
 POWER_MAP= []   # list of {rail, voltage, max_A, consumers}
+SENSOR_REGISTRY = []   # list of {kind, comp, location, node}
 
 def _reg_comm(frm, to, bus, speed, purpose):
     COMM_MAP.append({"from":frm,"to":to,"bus":bus,"speed":speed,"purpose":purpose})
 def _reg_power(rail, volt, max_a, consumers):
     POWER_MAP.append({"rail":rail,"voltage":volt,"max_A":max_a,"consumers":consumers})
+def _reg_sensor(kind, comp, location, node):
+    SENSOR_REGISTRY.append({"kind":kind,"comp":comp,"location":location,"node":node})
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -276,6 +308,7 @@ def _reg_power(rail, volt, max_a, consumers):
 class Logger:
     _buffer = []
     _count  = 0
+    _max_buffer = 500   # ROBUST-V14-5: cap buffer growth if disk flush keeps failing
 
     @classmethod
     def log(cls, msg, level="INFO"):
@@ -285,7 +318,7 @@ class Logger:
         print(safe, end="", flush=True)
         cls._buffer.append(line)
         cls._count += 1
-        if cls._count >= 20:
+        if cls._count >= 20 or len(cls._buffer) > cls._max_buffer:
             cls.flush()
 
     @classmethod
@@ -433,7 +466,17 @@ def run(context):
                 except Exception:
                     pass
 
+        # ROBUST-V14-1: shared axis/dimension validation guards
+        def _safe_axis(axis, default="z"):
+            if axis not in ("x", "y", "z"):
+                Logger.log(f"Invalid axis '{axis}', defaulting to '{default}'", "WARN")
+                return default
+            return axis
+
         def box(comp, name, cx, cy, cz, lx, ly, lz, ap=None):
+            if lx <= 0 or ly <= 0 or lz <= 0:
+                Logger.log(f"box({name}): invalid dims {lx},{ly},{lz} -- skipped", "WARN")
+                return None
             temp  = adsk.fusion.TemporaryBRepManager.get()
             obb   = adsk.core.OrientedBoundingBox3D.create(
                         adsk.core.Point3D.create(cx, cy, cz),
@@ -450,6 +493,10 @@ def run(context):
             return body
 
         def cyl(comp, name, cx, cy, cz, r, h, axis, ap=None):
+            axis = _safe_axis(axis)
+            if r <= 0 or h <= 0:
+                Logger.log(f"cyl({name}): invalid dims r={r} h={h} -- skipped", "WARN")
+                return None
             temp = adsk.fusion.TemporaryBRepManager.get()
             av   = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
             p1   = adsk.core.Point3D.create(cx-av[0]*h/2, cy-av[1]*h/2, cz-av[2]*h/2)
@@ -464,6 +511,10 @@ def run(context):
             return body
 
         def cone_shape(comp, name, cx, cy, cz, r1, r2, h, axis, ap=None):
+            axis = _safe_axis(axis)
+            if r1 < 0 or r2 < 0 or h <= 0:
+                Logger.log(f"cone({name}): invalid dims r1={r1} r2={r2} h={h} -- skipped", "WARN")
+                return None
             temp  = adsk.fusion.TemporaryBRepManager.get()
             av    = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
             p1    = adsk.core.Point3D.create(cx-av[0]*h/2, cy-av[1]*h/2, cz-av[2]*h/2)
@@ -480,13 +531,70 @@ def run(context):
         def marker(comp, name, cx, cy, cz, size=0.22):
             return box(comp, name, cx, cy, cz, size, size, size, white_pla)
 
+        # ── MFG-V14-1: TRUE 45-degree printable chamfer ────────────────────
+        def chamfer_wedge_cut(comp, tag, run_axis, run_center, run_len,
+                              p_corner, q_corner, chamfer):
+            """Cuts a genuine 45-degree wedge along an edge that runs parallel
+            to `run_axis`, at the sharp corner (p_corner, q_corner) in the
+            plane perpendicular to run_axis. The cutter is a square, rotated
+            45 degrees, centered EXACTLY on the sharp corner -- the standard
+            parametric trick for adding a real chamfer without needing direct
+            B-Rep edge selection: a 45-degree-rotated square centered on a
+            box corner always removes precisely a right-triangle wedge whose
+            legs equal half the square's diagonal, leaving a true 45-degree
+            face behind. (axis convention: for run_axis='z', p=X, q=Y; for
+            run_axis='y', p=X, q=Z; for run_axis='x', p=Y, q=Z.)"""
+            if chamfer <= 0:
+                return False
+            L = chamfer * math.sqrt(2.0)
+            c45, s45 = math.cos(math.radians(45)), math.sin(math.radians(45))
+            temp = adsk.fusion.TemporaryBRepManager.get()
+            try:
+                if run_axis == "x":
+                    center     = adsk.core.Point3D.create(run_center, p_corner, q_corner)
+                    length_dir = adsk.core.Vector3D.create(0, c45,  s45)
+                    width_dir  = adsk.core.Vector3D.create(0, -s45, c45)
+                elif run_axis == "y":
+                    center     = adsk.core.Point3D.create(p_corner, run_center, q_corner)
+                    length_dir = adsk.core.Vector3D.create(c45, 0, s45)
+                    width_dir  = adsk.core.Vector3D.create(-s45, 0, c45)
+                else:
+                    center     = adsk.core.Point3D.create(p_corner, q_corner, run_center)
+                    length_dir = adsk.core.Vector3D.create(c45, s45, 0)
+                    width_dir  = adsk.core.Vector3D.create(-s45, c45, 0)
+                obb   = adsk.core.OrientedBoundingBox3D.create(
+                            center, length_dir, width_dir, L, L, run_len + 0.10)
+                shape = temp.createBox(obb)
+                bf    = comp.features.baseFeatures.add()
+                bf.startEdit()
+                body  = comp.bRepBodies.add(shape, bf)
+                bf.finishEdit()
+                body.name = f"{tag}_ChamferCut"
+                cut_cavity(comp, body)
+                return True
+            except Exception as e:
+                Logger.log(f"chamfer_wedge_cut failed for {tag}: {e}", "WARN")
+                return False
+
         def chamfer_box(comp, name, cx, cy, cz, lx, ly, lz, axis, chamfer=0.25, ap=None):
-            """MFG-3 — Box with printability chamfer note. Logs a warning if the
-            chamfer is too small to be self-supporting at ~45deg."""
-            body = box(comp, name, cx, cy, cz, lx, ly, lz, ap)
+            """MFG-3 / MFG-V14-1 — Box with a TRUE 45-degree wedge chamfer cut
+            into its bottom-front edge (-Y face meeting -Z face, the model's
+            consistent overhang-risk direction since the whole figure stands
+            in +Z). Unlike a no-op stub or a stacked second box, this removes
+            a real triangular wedge via chamfer_wedge_cut(), so the printed
+            part is genuinely self-supporting at that edge. `axis` is kept
+            for call-site documentation/back-compat; the cut always targets
+            the bottom-front edge, which is where every current call site
+            (chin guard, heel spur, heel block, toe cap) actually overhangs."""
+            main = box(comp, name, cx, cy, cz, lx, ly, lz, ap)
+            if not main or chamfer <= 0:
+                return main
             if chamfer < 0.15:
-                SUPPORT_WARNINGS.append((name, f"chamfer {chamfer}cm may need support"))
-            return body
+                SUPPORT_WARNINGS.append(
+                    (name, f"chamfer {chamfer}cm is thin -- verify it actually clears the overhang"))
+            chamfer_wedge_cut(comp, name, run_axis="x", run_center=cx, run_len=lx,
+                              p_corner=cy - ly/2.0, q_corner=cz - lz/2.0, chamfer=chamfer)
+            return main
 
         # ── Boolean cavity cutter ─────────────────────────────────────────
         def cut_cavity(comp, tool_body, keep_tool=False):
