@@ -1,0 +1,15 @@
+{
+  "module": "ALL",
+  "export_stl": true,
+  "export_step": true,
+  "export_urdf": false,
+  "capture_screenshots": true,
+  "visual_audit": false,
+  "production_report": true,
+  "post_capture_views": false,
+  "fusion": {
+    "mcp_url": "http://127.0.0.1:27182/mcp",
+    "auto_launch": true,
+    "keep_docs": false
+  }
+}

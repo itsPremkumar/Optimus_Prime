@@ -258,6 +258,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--module", default="ALL", choices=["ALL","rom","head","wave","breathing","walk","run","combat","transform","truck","robot","stability","servo"])
     parser.add_argument("--capture", action="store_true")
+    parser.add_argument("--export-stl", action="store_true", help="Export STL files")
+    parser.add_argument("--export-step", action="store_true", help="Export STEP files")
+    parser.add_argument("--export-urdf", action="store_true", help="Export URDF files")
+    parser.add_argument("--visual-audit", action="store_true", help="Run visual audit (robot/truck/battle screenshots)")
+    parser.add_argument("--no-production-report", action="store_true", dest="no_production_report", help="Skip production readiness report")
     parser.add_argument("--mcp-url", default=None)
     parser.add_argument("--no-launch", action="store_true", help="Don't try to start Fusion")
     parser.add_argument("--keep-docs", action="store_true", help="Don't close existing documents")
@@ -298,10 +303,15 @@ if __name__ == "__main__":
             script += CLOSE_DOCS_PROLOGUE + "\n"
         script += f"TARGET_MODULE = '{args.module}'\n"
         script += f"CAPTURE_SCREENSHOTS = {args.capture}\n"
-        script += f"EXPORT_DIR = r'{output_dir}\\exports'\n"
-        script += f"LOG_DIR = r'{output_dir}\\logs'\n"
-        script += f"SCREENSHOT_DIR = r'{output_dir}\\screenshots'\n"
-        script += f.read()
+    script += f"EXPORT_DIR = r'{output_dir}\\exports'\n"
+    script += f"LOG_DIR = r'{output_dir}\\logs'\n"
+    script += f"SCREENSHOT_DIR = r'{output_dir}\\screenshots'\n"
+    script += f"EXPORT_STL = {args.export_stl}\n"
+    script += f"EXPORT_STEP = {args.export_step}\n"
+    script += f"EXPORT_URDF = {args.export_urdf}\n"
+    script += f"VISUAL_AUDIT = {args.visual_audit}\n"
+    script += f"PRODUCTION_REPORT = {not args.no_production_report}\n"
+    script += f.read()
 
     # 4. Run the simulation
     print("Sending Optimus Prime G1 engine to Fusion...")
@@ -321,6 +331,11 @@ if __name__ == "__main__":
             script_retry += f"EXPORT_DIR = r'{output_dir}\\exports'\n"
             script_retry += f"LOG_DIR = r'{output_dir}\\logs'\n"
             script_retry += f"SCREENSHOT_DIR = r'{output_dir}\\screenshots'\n"
+            script_retry += f"EXPORT_STL = {args.export_stl}\n"
+            script_retry += f"EXPORT_STEP = {args.export_step}\n"
+            script_retry += f"EXPORT_URDF = {args.export_urdf}\n"
+            script_retry += f"VISUAL_AUDIT = {args.visual_audit}\n"
+            script_retry += f"PRODUCTION_REPORT = {not args.no_production_report}\n"
             with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
                 script_retry += f.read()
             res = run_simulation(script_retry)
