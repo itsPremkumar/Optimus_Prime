@@ -3,12 +3,13 @@
 Optimus Prime G1 Build Pipeline
 ================================
 Orchestrates: run simulation -> capture screenshots -> validate outputs
+Creates versioned output folders (v001, v002...) with manifest + fitness report.
 
 Usage:
     python pipeline.py                  # uses config.json
     python pipeline.py --config my.json # custom config
 """
-import json, os, sys, subprocess
+import json, os, sys, subprocess, hashlib, glob, time
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -27,6 +28,7 @@ def load_config(path):
             "visual_audit": False,
             "production_report": True,
             "post_capture_views": False,
+            "versioned_outputs": True,
             "fusion": {
                 "mcp_url": "http://127.0.0.1:27182/mcp",
                 "auto_launch": True,
@@ -41,15 +43,60 @@ def load_config(path):
         return json.load(f)
 
 
-def run_simulation(config):
+def next_version_dir(outputs_root: Path) -> Path:
+    outputs_root.mkdir(parents=True, exist_ok=True)
+    existing = glob.glob(str(outputs_root / "v*"))
+    max_num = 0
+    for d in existing:
+        name = os.path.basename(d)
+        if name.startswith("v") and name[1:].isdigit():
+            max_num = max(max_num, int(name[1:]))
+    ver = f"v{max_num + 1:03d}"
+    version_dir = outputs_root / ver
+    (version_dir / "exports").mkdir(parents=True)
+    (version_dir / "logs").mkdir(parents=True)
+    (version_dir / "screenshots").mkdir(parents=True)
+    return version_dir
+
+
+def generate_manifest(version_dir: Path):
+    manifest = {
+        "version": version_dir.name,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "artifacts": {},
+    }
+    for fpath in sorted(version_dir.rglob("*")):
+        if fpath.is_file() and fpath.name != "manifest.json":
+            with open(fpath, "rb") as f:
+                manifest["artifacts"][str(fpath.relative_to(version_dir))] = hashlib.sha256(f.read()).hexdigest()
+    mpath = version_dir / "manifest.json"
+    with open(mpath, "w") as f:
+        json.dump(manifest, f, indent=2)
+    print(f"  Manifest: {mpath} ({len(manifest['artifacts'])} files)")
+
+
+def write_fitness(version_dir: Path, results: list, all_ok: bool):
+    fitness = {
+        "version": version_dir.name,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "overall": "PASS" if all_ok else "FAIL",
+        "checks": [{"name": r[0], "detail": r[1], "status": r[2]} for r in results],
+    }
+    fpath = version_dir / "fitness.json"
+    with open(fpath, "w") as f:
+        json.dump(fitness, f, indent=2)
+    print(f"  Fitness:  {fpath}")
+
+
+def run_simulation(config, version_dir):
     print("=" * 60)
     print("  STEP 1: Run Optimus Prime v14 Simulation")
     print("=" * 60)
     args = [
         sys.executable,
         str(BASE_DIR / "run_simulation.py"),
-        "--module",
-        config["module"],
+        "--module", config["module"],
+        "--output-dir", str(version_dir),
     ]
     if config["capture_screenshots"]:
         args.append("--capture")
@@ -82,15 +129,16 @@ def capture_views():
     return result.returncode == 0
 
 
-def validate_outputs(config):
+def validate_outputs(config, version_dir):
     print("=" * 60)
     print("  STEP 3: Validate Outputs")
     print("=" * 60)
-    output_dir = PROJECT_DIR / "output"
+    export_dir = version_dir / "exports"
+    log_dir = version_dir / "logs"
+    screenshot_dir = version_dir / "screenshots"
     results = []
     all_ok = True
 
-    export_dir = output_dir / "exports"
     if config["export_stl"] or config["export_step"] or config["export_urdf"]:
         if config["export_stl"]:
             stls = list(export_dir.rglob("*.stl")) if export_dir.exists() else []
@@ -110,7 +158,6 @@ def validate_outputs(config):
     else:
         results.append(("Exports", "disabled in config", "SKIP"))
 
-    log_dir = output_dir / "logs"
     logs = sorted(log_dir.glob("*.txt")) if log_dir.exists() else []
     if logs:
         has_errors = False
@@ -120,34 +167,26 @@ def validate_outputs(config):
                 if keyword.lower() in content.lower():
                     has_errors = True
                     break
-        results.append(
-            ("Logs", f"{len(logs)} files, {'errors' if has_errors else 'OK'}", "FAIL" if has_errors else "PASS")
-        )
+        results.append(("Logs", f"{len(logs)} files, {'errors' if has_errors else 'OK'}", "FAIL" if has_errors else "PASS"))
         all_ok &= not has_errors
     else:
         results.append(("Logs", "no log files", "FAIL"))
         all_ok = False
 
-    screenshot_dir = output_dir / "screenshots"
     if config["capture_screenshots"]:
         pngs = list(screenshot_dir.glob("*.png")) if screenshot_dir.exists() else []
         ok = len(pngs) > 0
         results.append(("Screenshots", f"{len(pngs)} files", "PASS" if ok else "FAIL"))
         all_ok &= ok
 
-    boms = list(output_dir.glob("BOM_v14_*.csv")) if output_dir.exists() else []
+    boms = list(version_dir.glob("BOM_v14_*.csv")) if version_dir.exists() else []
     ok = len(boms) > 0
     results.append(("BOM", f"{len(boms)} files", "PASS" if ok else "FAIL"))
     all_ok &= ok
 
-    guides = list(output_dir.glob("ASSEMBLY_GUIDE_v14_*.txt")) if output_dir.exists() else []
+    guides = list(version_dir.glob("ASSEMBLY_GUIDE_v14_*.txt")) if version_dir.exists() else []
     ok = len(guides) > 0
     results.append(("Assembly Guide", f"{len(guides)} files", "PASS" if ok else "FAIL"))
-    all_ok &= ok
-
-    manifests = list(output_dir.glob("BUILD_MANIFEST_v14_*.json")) if output_dir.exists() else []
-    ok = len(manifests) > 0
-    results.append(("Build Manifest", f"{len(manifests)} files", "PASS" if ok else "FAIL"))
     all_ok &= ok
 
     print()
@@ -157,7 +196,9 @@ def validate_outputs(config):
         print(f"{name:<25} {detail:<30} {status}")
     print("-" * 75)
     print(f"{'OVERALL':<25} {'':<30} {'PASS' if all_ok else 'FAIL'}")
+    print()
 
+    write_fitness(version_dir, results, all_ok)
     return all_ok
 
 
@@ -179,7 +220,18 @@ def main():
     print(f"Screenshots: {config['capture_screenshots']}, Post-capture views: {config['post_capture_views']}")
     print()
 
-    sim_ok = run_simulation(config)
+    outputs_root = PROJECT_DIR / "output"
+    if config.get("versioned_outputs", True):
+        version_dir = next_version_dir(outputs_root)
+        print(f"Output:  {version_dir}/")
+        print()
+    else:
+        version_dir = outputs_root
+        version_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Output:  {version_dir}/ (flat mode)")
+        print()
+
+    sim_ok = run_simulation(config, version_dir)
     if not sim_ok:
         print("[pipeline] Simulation step FAILED -- aborting pipeline.")
         sys.exit(1)
@@ -187,13 +239,14 @@ def main():
     if config.get("post_capture_views"):
         capture_views()
 
-    validate_ok = validate_outputs(config)
+    generate_manifest(version_dir)
+    validate_ok = validate_outputs(config, version_dir)
 
     print()
     if validate_ok:
-        print("  Pipeline completed successfully.")
+        print(f"  Pipeline completed successfully  ->  {version_dir}/")
     else:
-        print("  Pipeline completed with validation warnings.")
+        print(f"  Pipeline completed with warnings  ->  {version_dir}/")
         sys.exit(1)
 
 

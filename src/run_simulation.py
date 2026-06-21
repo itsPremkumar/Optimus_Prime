@@ -266,6 +266,7 @@ if __name__ == "__main__":
     parser.add_argument("--mcp-url", default=None)
     parser.add_argument("--no-launch", action="store_true", help="Don't try to start Fusion")
     parser.add_argument("--keep-docs", action="store_true", help="Don't close existing documents")
+    parser.add_argument("--output-dir", default=None, help="Root output directory (default: ../output)")
     args = parser.parse_args()
 
     if args.mcp_url:
@@ -295,7 +296,7 @@ if __name__ == "__main__":
         time.sleep(0.5)
 
     # 3. Close all existing documents (embedded in payload to avoid session issues)
-    output_dir = os.path.join(os.path.dirname(BASE_DIR), "output")
+    output_dir = args.output_dir or os.path.join(os.path.dirname(BASE_DIR), "output")
     print(f"Loading payload for module '{args.module}'...")
     with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
         script = ""

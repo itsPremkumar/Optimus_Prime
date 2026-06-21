@@ -7,6 +7,7 @@
   "visual_audit": false,
   "production_report": true,
   "post_capture_views": false,
+  "versioned_outputs": false,
   "fusion": {
     "mcp_url": "http://127.0.0.1:27182/mcp",
     "auto_launch": true,
