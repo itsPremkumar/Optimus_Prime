@@ -598,30 +598,64 @@ def run(context):
 
         # ── Boolean cavity cutter ─────────────────────────────────────────
         def cut_cavity(comp, tool_body, keep_tool=False):
-            tools = adsk.core.ObjectCollection.create()
-            tools.add(tool_body)
+            """ROBUST-V14-2 — Re-fetches both the tool and each target body by
+            name immediately before every combine call. Sequential combine
+            operations in Fusion can silently invalidate previously-held
+            BRepBody references (the underlying body gets replaced), so
+            holding onto the original Python object across many cuts in a
+            row is a common source of silent no-op failures. Looking the
+            body up by name string right before use avoids that class of bug."""
+            if not tool_body or not tool_body.isValid:
+                Logger.log("cut_cavity: invalid tool body", "WARN")
+                return False
+            tool_name = tool_body.name
+            target_names = []
             for b in list(comp.bRepBodies):
                 if b == tool_body:
                     continue
                 if b.name and any(t in b.name for t in SKIP_TAGS):
                     continue
+                target_names.append(b.name)
+
+            success = False
+            for t_name in target_names:
+                t_body  = comp.bRepBodies.itemByName(t_name)
+                cur_tool = comp.bRepBodies.itemByName(tool_name)
+                if not t_body or not t_body.isValid:
+                    continue
+                if not cur_tool or not cur_tool.isValid:
+                    break  # tool itself got invalidated; nothing more we can cut with it
+                tools = adsk.core.ObjectCollection.create()
+                tools.add(cur_tool)
                 try:
-                    ci = comp.features.combineFeatures.createInput(b, tools)
+                    ci = comp.features.combineFeatures.createInput(t_body, tools)
                     ci.operation        = adsk.fusion.CombineOperation.CutFeatureOperation
                     ci.isKeepToolBodies = True
                     comp.features.combineFeatures.add(ci)
-                except Exception:
-                    pass
+                    success = True
+                except Exception as e:
+                    Logger.log(f"cut_cavity: cut on {t_name} failed: {e}", "DEBUG")
+
             if not keep_tool:
-                try:
-                    tool_body.isLightBulbOn = False
-                    if "_Vis" not in tool_body.name:
-                        tool_body.name += "_Vis"
-                except Exception:
-                    pass
+                cur_tool = comp.bRepBodies.itemByName(tool_name)
+                if cur_tool and cur_tool.isValid:
+                    try:
+                        cur_tool.isLightBulbOn = False
+                        if "_Vis" not in cur_tool.name:
+                            cur_tool.name += "_Vis"
+                    except Exception:
+                        pass
+            return success
 
         # ── Shell splitter for FDM printing ───────────────────────────────
         def split_halves(comp, body, axis="y", offset=0.0):
+            """ROBUST-V14-3 — Validates the split actually produced >=2
+            bodies before declaring success; many silent split failures in
+            Fusion otherwise look identical to a successful single-body split."""
+            if not body or not body.isValid:
+                Logger.log(f"split_halves: invalid body in {comp.name}", "WARN")
+                return False
+            before_count = len([b for b in comp.bRepBodies if b.isValid])
             try:
                 planes = comp.constructionPlanes
                 pi     = planes.createInput()
@@ -632,20 +666,33 @@ def run(context):
                 sp          = planes.add(pi)
                 split_input = comp.features.splitBodyFeatures.createInput(body, sp, True)
                 comp.features.splitBodyFeatures.add(split_input)
-            except Exception:
-                pass
+                after_count = len([b for b in comp.bRepBodies if b.isValid])
+                if after_count <= before_count:
+                    Logger.log(f"split_halves: {body.name} did not split "
+                               f"(before={before_count} after={after_count})", "WARN")
+                    return False
+                return True
+            except Exception as e:
+                Logger.log(f"split_halves failed: {e}", "WARN")
+                return False
 
-        # ── BUGFIX-V13-2: Post-split fastener merge with proper None guards ─
+        # ── MFG-1 — Post-split fastener merge (None-safe on either side) ──
         def merge_fasteners_to_halves(comp, body_left, body_right, axis="y"):
-            """MFG-1 — After split, merge Pin/Boss/Insert/Nut/Snap bodies to
-            the nearest shell half based on position relative to split plane.
-            BUGFIX: both body_left and body_right may legitimately be None
-            (only one half passed at a time) — guard isValid checks accordingly,
-            and skip entirely if neither target is available."""
+            """After split, merge Pin/Boss/Insert/Nut/Snap bodies to the
+            nearest shell half based on position relative to the split plane.
+            ROBUST-V14-4: callers now make ONE consolidated call per component
+            passing both halves together (instead of two separate calls, one
+            per side), which avoids re-scanning the whole body list twice for
+            every split and removes the only-one-side-was-merged edge case.
+            body_left and/or body_right may legitimately be None."""
             if body_left is None and body_right is None:
                 return
             fastener_tags = {"Pin", "Boss", "Insert", "Nut", "Snap"}
             skip_local    = {"_Vis", "Marker", "Pivot", "MtA", "MtB", "Axle_Pivot", "Horn"}
+            left_name  = body_left.name  if body_left  and body_left.isValid  else None
+            right_name = body_right.name if body_right and body_right.isValid else None
+
+            fasteners_to_merge = []
             for b in list(comp.bRepBodies):
                 if not b.name or any(skip in b.name for skip in skip_local):
                     continue
@@ -654,24 +701,31 @@ def run(context):
                 try:
                     cog = b.physicalProperties.centerOfMass
                     pos = cog.y if axis == "y" else cog.z if axis == "z" else cog.x
-                    target = None
-                    if pos < 0 and body_left is not None and body_left.isValid:
-                        target = body_left
-                    elif pos > 0 and body_right is not None and body_right.isValid:
-                        target = body_right
-                    elif body_left is not None and body_left.isValid:
-                        target = body_left
-                    elif body_right is not None and body_right.isValid:
-                        target = body_right
-                    if target is not None:
-                        tools = adsk.core.ObjectCollection.create()
-                        tools.add(b)
-                        ci = comp.features.combineFeatures.createInput(target, tools)
-                        ci.operation = adsk.fusion.CombineOperation.JoinFeatureOperation
-                        ci.isKeepToolBodies = False
-                        comp.features.combineFeatures.add(ci)
+                    if left_name and pos < 0:
+                        fasteners_to_merge.append((b.name, left_name))
+                    elif right_name and pos > 0:
+                        fasteners_to_merge.append((b.name, right_name))
+                    elif left_name:
+                        fasteners_to_merge.append((b.name, left_name))
+                    elif right_name:
+                        fasteners_to_merge.append((b.name, right_name))
                 except Exception:
                     pass
+
+            for f_name, t_name in fasteners_to_merge:
+                f_body = comp.bRepBodies.itemByName(f_name)
+                t_body = comp.bRepBodies.itemByName(t_name)
+                if not f_body or not f_body.isValid or not t_body or not t_body.isValid:
+                    continue
+                try:
+                    tools = adsk.core.ObjectCollection.create()
+                    tools.add(f_body)
+                    ci = comp.features.combineFeatures.createInput(t_body, tools)
+                    ci.operation = adsk.fusion.CombineOperation.JoinFeatureOperation
+                    ci.isKeepToolBodies = False
+                    comp.features.combineFeatures.add(ci)
+                except Exception as e:
+                    Logger.log(f"merge_fastener failed for {f_name}: {e}", "DEBUG")
 
         def printability_check(comp, body_name, overhang_angle_deg=45):
             """MFG-2 — Heuristic overhang/support warning logger."""
@@ -1262,6 +1316,87 @@ def run(context):
             cyl(comp, f"{tag}_SwHole", cx, cy, cz, POWER_SWITCH_R, 1.0, axis, black_plastic)
             cut_cavity(comp, cyl(comp, f"{tag}_SwCut", cx, cy, cz, POWER_SWITCH_R+0.03, 1.2, axis))
             BOM.add("Electronics", "Panel-mount rocker switch SPST (master)", 1, comp.name)
+
+        # ─────────────────────────────────────────────────────────────────
+        # V14 NEW: SENSOR FUSION, AI ACCELERATOR, COMM BACKBONE, SAFETY
+        # ─────────────────────────────────────────────────────────────────
+
+        def sensor_array(comp, tag, cx, cy, cz, axis="y", with_ultrasonic=True):
+            """SYS-V14-1 — Sensor fusion array: HC-SR04 ultrasonic (optional,
+            for pelvis-mounted general obstacle sensing) + 4x FSR force pads
+            (for foot-mounted stance/pressure sensing) + an ADS1115 ADC to
+            read the FSR pads. This complements -- not duplicates -- the
+            head-mounted ToF pair: ToF is fast/short-range/forward-facing for
+            reactive avoidance, ultrasonic is mid-range/general, and FSR is
+            proprioceptive (it tells the robot how its weight is distributed,
+            which the camera and ToF cannot)."""
+            if with_ultrasonic:
+                cut_cavity(comp, box(comp, f"{tag}_USPkt", cx, cy, cz, US_L, US_W, US_H))
+                cut_cavity(comp, cyl(comp, f"{tag}_US_Tx", cx-1.35, cy-1.10, cz, US_TXRX_R, 0.30, "y"))
+                cut_cavity(comp, cyl(comp, f"{tag}_US_Rx", cx+1.35, cy-1.10, cz, US_TXRX_R, 0.30, "y"))
+                BOM.add("Electronics", "HC-SR04 ultrasonic sensor", 1, comp.name)
+                _reg_sensor("ultrasonic", comp.name, tag, "Balance Node (ESP32-S3 lower)")
+            # FSR pads (4x, corners) -- for feet this gives toe/heel L/R pressure
+            for fsr_x, fsr_z in [(-1.5, -1.0), (1.5, -1.0), (-1.5, 1.0), (1.5, 1.0)]:
+                cut_cavity(comp, box(comp, f"{tag}_FSR_{fsr_x:.0f}_{fsr_z:.0f}",
+                    cx+fsr_x, cy, cz+fsr_z, FSR_SZ, FSR_T, FSR_SZ))
+            BOM.add("Electronics", "Force-sensitive resistor 0.5in (FSR)", 4, comp.name)
+            BOM.add("Electronics", "ADS1115 16-bit ADC (I2C)", 1, comp.name)
+            _reg_sensor("FSR_x4+ADC", comp.name, tag, "Balance Node (ESP32-S3 lower)")
+
+        def ai_accel_pocket(comp, tag, cx, cy, cz):
+            """SYS-V14-2 — Future-ready USB-C AI accelerator bay (Google Coral
+            Edge TPU or Intel Neural Compute Stick). Wired to a free Jetson
+            USB3 port. Not populated by default -- this just reserves the
+            space and BOM line so a model upgrade never needs a redesign."""
+            cut_cavity(comp, box(comp, f"{tag}_AIAccel", cx, cy, cz,
+                                 AI_ACCEL_L, AI_ACCEL_H, AI_ACCEL_W))
+            cut_cavity(comp, box(comp, f"{tag}_AIAccelUSB",
+                cx + AI_ACCEL_L/2 - 0.20, cy, cz, AI_ACCEL_USBC_W, AI_ACCEL_USBC_H, 0.60))
+            BOM.add("Electronics", "Google Coral USB Accelerator (future, optional)", 1, comp.name)
+            ASSEMBLY_STEPS.append(f"{tag}: reserved AI-accelerator bay -- populate when needed, "
+                                  f"no redesign required")
+
+        def comm_backbone(comp, tag, cx, cy, cz, length, axis="z"):
+            """SYS-V14-3 — Visual I2C/UART/SPI communication trunk channel run
+            down the spine. This is primarily a build/wiring aid: it gives
+            the three buses a clearly separated, labeled physical path so
+            the harness doesn't get tangled with servo power wiring."""
+            wire_channel(comp, f"{tag}_Trunk", cx, cy, cz, COMM_TRUNK_R, length, axis)
+            wire_channel(comp, f"{tag}_I2C",  cx+0.12, cy+0.02, cz, COMM_I2C_R,  length, axis)
+            wire_channel(comp, f"{tag}_UART", cx-0.12, cy+0.02, cz, COMM_UART_R, length, axis)
+            wire_channel(comp, f"{tag}_SPI",  cx, cy-0.15, cz, COMM_SPI_R, length, axis)
+            BOM.add("Electronics", "22AWG signal wire (comm backbone, per run)",
+                    int(length/5)+1, comp.name)
+            BOM.add("Electronics", "JST-SH 1.0mm 6-pin (I2C/UART/SPI tap)", 6, comp.name)
+            _reg_comm("MainBus", "All nodes", "I2C+UART+SPI trunk", "mixed",
+                      "physical bus separation along spine")
+
+        def estop_cutout(comp, tag, cx, cy, cz, axis="y"):
+            """SYS-V14-4 — Independent, normally-closed emergency-stop button
+            wired in series with the 7.4V servo rail ONLY. Pressing it cuts
+            all servo power instantly while the Jetson Nano, ESP32 nodes, and
+            sensors remain powered -- so the robot goes limp safely and you
+            can still read logs / diagnose over the still-live debug port.
+            This is deliberately a separate physical switch from the main
+            power switch, matching standard robotics-lab safety practice."""
+            cyl(comp, f"{tag}_EstopCollar", cx, cy, cz, ESTOP_COLLAR_R, 1.0, axis, op_red)
+            cut_cavity(comp, cyl(comp, f"{tag}_EstopHole", cx, cy, cz, ESTOP_R, 1.2, axis))
+            BOM.add("Electronics", "22mm mushroom-head E-stop pushbutton (N.C.)", 1, comp.name)
+            BOM.add("Electronics", "Automotive relay 30A (servo rail cutoff)", 1, comp.name)
+            ASSEMBLY_STEPS.append(
+                f"Wire {tag} E-stop in series with the servo-rail relay coil ONLY -- "
+                f"verify Jetson and ESP32 nodes stay powered when E-stop is pressed")
+
+        def status_rgb_pocket(comp, tag, cx, cy, cz, axis="y"):
+            """SYS-V14-5 — Single WS2812 addressable RGB status indicator,
+            driven by the Jetson (or Motor Controller node) to show system
+            state: blue pulse = booting, green = ready, yellow = low battery,
+            red = fault/E-stop. Reuses the existing LED-pocket convention."""
+            cut_cavity(comp, cyl(comp, f"{tag}_StatusRGB", cx, cy, cz, STATUS_RGB_R, 0.50, axis))
+            BOM.add("Electronics", "WS2812 5050 addressable RGB LED (status)", 1, comp.name)
+            ASSEMBLY_STEPS.append(f"{tag}: wire status RGB to Jetson GPIO or Motor Controller node "
+                                  f"(boot=blue, ready=green, low-batt=yellow, fault=red)")
 
 
         # ─────────────────────────────────────────────────────────────────
@@ -2033,6 +2168,16 @@ def run(context):
             mg996r(thigh, f"{side}_KneP",    sx, 0, KNEE_CTR+1.5,            "x")
             dual_bearing(thigh, f"{side}_Knee_Dual", sx, 0, KNEE_CTR,
                          "x", 1.00, 0.55, span=2.60, fit_type="press")
+            # MECH-V14-1: knee-yaw DOF -- lets the lower leg splay slightly
+            # for uneven-terrain adaptation and improves the transform
+            # sequence's cross-step. Mounted offset from the pitch axis so
+            # the two servos don't physically clash.
+            u_bracket(thigh, f"{side}_KnYawB", sx+m*KNEE_YAW_OFFSET_X, 0, KNEE_CTR+1.0, 3.0, 2.6, 2.6)
+            mg996r(thigh, f"{side}_KneYaw",  sx+m*KNEE_YAW_OFFSET_X, 0, KNEE_CTR+1.0, "y")
+            bearing_fit(thigh, f"{side}_KneYaw_Brg", sx+m*KNEE_YAW_OFFSET_X, 0, KNEE_CTR+1.0,
+                        "y", KNEE_YAW_BRG_R, KNEE_YAW_BRG_W, fit_type="press")
+            hard_stop(thigh, f"{side}_KneYawStop", sx+m*KNEE_YAW_OFFSET_X, -1.8, KNEE_CTR+1.0, "y", 15)
+            BOM.add("Servo", "MG996R 11 kg-cm servo (knee yaw)", 1, f"OP_Thigh_{side}")
             wire_channel(thigh, f"{side}_LW", sx, 0, THIGH_CTR,              0.5, 12.0, "z")
             for bz in [THIGH_CTR+3.0, THIGH_CTR-3.0]:
                 m3_boss(thigh, f"{side}_ThighBoss_{bz:.0f}", sx, 0, bz)
@@ -2333,7 +2478,7 @@ def run(context):
             ha = occs.get(f"OP_Hand_{side}")
 
             ball_joint(f"{side}_Hip_Cluster",      th, p,  sx, 0, HIP_JOINT_Z)
-            revolute_joint(f"{side}_Knee",         sn, th, sx, 0, KNEE_CTR+1.5, "x")
+            ball_joint(f"{side}_Knee",             sn, th, sx, 0, KNEE_CTR+1.5)
             ball_joint(f"{side}_Ankle_Cluster",    fo, sn, sx, 0, ANKLE_CTR+2.2)
             ball_joint(f"{side}_Shoulder_Cluster", ua, t,  ax, 0, SHOULDER_CTR)
             revolute_joint(f"{side}_Elbow",        fa, ua, ax, 0, ELBOW_Z,      "x")
@@ -2419,13 +2564,14 @@ def run(context):
             BALL_JOINTS = {
                 "Waist_Cluster", "Neck_Cluster",
                 "L_Hip_Cluster", "R_Hip_Cluster",
+                "L_Knee", "R_Knee",
                 "L_Ankle_Cluster", "R_Ankle_Cluster",
                 "L_Shoulder_Cluster", "R_Shoulder_Cluster",
                 "L_Wrist", "R_Wrist",
                 "L_Thumb_CMC", "R_Thumb_CMC",
             }
             REV_JOINTS = {
-                "L_Knee", "R_Knee", "L_Elbow", "R_Elbow", "Blaster_Fold",
+                "L_Elbow", "R_Elbow", "Blaster_Fold",
                 "L_Pinky_MCP", "L_Ring_MCP", "L_Middle_MCP", "L_Index_MCP",
                 "R_Pinky_MCP", "R_Ring_MCP", "R_Middle_MCP", "R_Index_MCP",
             }
