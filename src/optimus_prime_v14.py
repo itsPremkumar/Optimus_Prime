@@ -91,11 +91,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 if 'TARGET_MODULE'     not in globals(): TARGET_MODULE     = "ALL"
-if 'EXPORT_STL'        not in globals(): EXPORT_STL        = False
-if 'EXPORT_STEP'       not in globals(): EXPORT_STEP       = False
-if 'EXPORT_URDF'       not in globals(): EXPORT_URDF       = False
-if 'CAPTURE_SCREENSHOTS' not in globals(): CAPTURE_SCREENSHOTS = False
-if 'VISUAL_AUDIT'      not in globals(): VISUAL_AUDIT      = False
+if 'EXPORT_STL'        not in globals(): EXPORT_STL        = True
+if 'EXPORT_STEP'       not in globals(): EXPORT_STEP       = True
+if 'EXPORT_URDF'       not in globals(): EXPORT_URDF       = True
+if 'CAPTURE_SCREENSHOTS' not in globals(): CAPTURE_SCREENSHOTS = True
+if 'VISUAL_AUDIT'      not in globals(): VISUAL_AUDIT      = True
 if 'PRODUCTION_REPORT' not in globals(): PRODUCTION_REPORT = True
 
 import adsk.core, adsk.fusion, traceback, math, os, csv, json, datetime, time
@@ -750,7 +750,7 @@ def run(context):
         # PHYSICAL FEATURE HELPERS  (PHY-1 … PHY-11, kept from v12)
         # ─────────────────────────────────────────────────────────────────
 
-        def m3_boss(comp, tag, cx, cy, cz, axis="z", depth=0.80, screw_len=1.0):
+        def m3_boss(comp, tag, cx, cy, cz, axis="z", depth=0.80, screw_len=1.2):
             """PHY-1 — Ø7 mm boss cylinder + Ø4.7 mm heat-set insert pocket."""
             boss = cyl(comp, f"{tag}_Boss", cx, cy, cz, BOSS_R, depth, axis, dark_metal)
             boss.name = f"{tag}_Boss"
@@ -765,7 +765,7 @@ def run(context):
                 "cx": cx, "cy": cy, "cz": cz,
             })
 
-        def captive_nut(comp, tag, cx, cy, cz, axis="z", bolt_len=1.0):
+        def captive_nut(comp, tag, cx, cy, cz, axis="z", bolt_len=1.2):
             """PHY-2 — M3 hex-nut trap + clearance through-bore."""
             cut_cavity(comp, cyl(comp, f"{tag}_NutTrap",
                                  cx, cy, cz, M3_NUT_CIR, M3_NUT_H, axis))
@@ -1874,6 +1874,8 @@ def run(context):
             cyl(comp, f"{tag}_VisHub",   cx+side*3.25, cy,     cz,  0.80, 2.60, "x",  dark_metal)
             cyl(comp, f"{tag}_VisTire",  cx+side*3.25, cy,     cz,  3.25, 2.60, "x",  rubber_blk)
             cyl(comp, f"{tag}_VisRim",   cx+side*3.25, cy,     cz,  2.20, 2.65, "x",  chrome)
+            # Add an axle connecting the gearbox/motor to the leg shell (visually)
+            cyl(comp, f"{tag}_AxlePin",  cx - side*1.15, cy,     cz,  0.5, 3.5, "x", dark_metal)
             marker(comp, f"{tag}_Axle_Pivot", cx+side*3.25, cy, cz, 0.18)
             cut_cavity(comp, box(comp, f"{tag}_CGB", cx,           cy, cz, 2.30+cl, 5.20+cl, 1.90+cl))
             cut_cavity(comp, box(comp, f"{tag}_CDS", cx+side*3.25, cy, cz, 2.7+cl,  0.54+cl, 0.36+cl))
@@ -2511,6 +2513,8 @@ def run(context):
                 if j.occurrenceTwo:
                     jointed_comps.add(j.occurrenceTwo.component.name)
             for comp in comps_list:
+                if comp.name.startswith("JIG_"):
+                    continue
                 if (comp.name not in ("OP_Torso", "OP_Pelvis")
                         and comp.name not in jointed_comps):
                     orphans.append(comp.name)
