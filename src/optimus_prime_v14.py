@@ -3015,8 +3015,8 @@ def run(context):
                         ("R_Hip_Cluster",      25*r_sign, 10*r_sign,  5*r_sign),
                         ("L_Shoulder_Cluster",  8*l_sign, 15*l_sign,  5*l_sign),
                         ("R_Shoulder_Cluster",  8*r_sign, 15*r_sign,  5*r_sign),
-                        ("L_Knee",             60,        None,        None),
-                        ("R_Knee",             60,        None,        None),
+                        ("L_Knee",             60,        4*l_sign,    None),
+                        ("R_Knee",             60,        4*r_sign,    None),
                         ("L_Ankle_Cluster",    15*l_sign, None,        8*l_sign),
                         ("R_Ankle_Cluster",    15*r_sign, None,        8*r_sign),
                     ], steps=20)
@@ -3036,8 +3036,8 @@ def run(context):
                         ("R_Hip_Cluster",      30*r_sign, 20*r_sign, 10*r_sign),
                         ("L_Shoulder_Cluster", 15*l_sign, 25*l_sign, 10*l_sign),
                         ("R_Shoulder_Cluster", 15*r_sign, 25*r_sign, 10*r_sign),
-                        ("L_Knee",             95,        None,       None),
-                        ("R_Knee",             95,        None,       None),
+                        ("L_Knee",             95,        6*l_sign,   None),
+                        ("R_Knee",             95,        6*r_sign,   None),
                         ("L_Ankle_Cluster",    25*l_sign, None,       12*l_sign),
                         ("R_Ankle_Cluster",    25*r_sign, None,       12*r_sign),
                     ], steps=14)

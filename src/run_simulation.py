@@ -299,11 +299,12 @@ if __name__ == "__main__":
     output_dir = args.output_dir or os.path.join(os.path.dirname(BASE_DIR), "output")
     print(f"Loading payload for module '{args.module}'...")
     with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
-        script = ""
-        if not args.keep_docs:
-            script += CLOSE_DOCS_PROLOGUE + "\n"
-        script += f"TARGET_MODULE = '{args.module}'\n"
-        script += f"CAPTURE_SCREENSHOTS = {args.capture}\n"
+        payload = f.read()
+    script = ""
+    if not args.keep_docs:
+        script += CLOSE_DOCS_PROLOGUE + "\n"
+    script += f"TARGET_MODULE = '{args.module}'\n"
+    script += f"CAPTURE_SCREENSHOTS = {args.capture}\n"
     script += f"EXPORT_DIR = r'{output_dir}\\exports'\n"
     script += f"LOG_DIR = r'{output_dir}\\logs'\n"
     script += f"SCREENSHOT_DIR = r'{output_dir}\\screenshots'\n"
@@ -312,7 +313,7 @@ if __name__ == "__main__":
     script += f"EXPORT_URDF = {args.export_urdf}\n"
     script += f"VISUAL_AUDIT = {args.visual_audit}\n"
     script += f"PRODUCTION_REPORT = {not args.no_production_report}\n"
-    script += f.read()
+    script += payload
 
     # 4. Run the simulation
     print("Sending Optimus Prime G1 engine to Fusion...")
@@ -326,6 +327,8 @@ if __name__ == "__main__":
                 send_escape()
                 time.sleep(0.3)
             # Retry without the close-docs prologue (docs already closed)
+            with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
+                payload_retry = f.read()
             script_retry = ""
             script_retry += f"TARGET_MODULE = '{args.module}'\n"
             script_retry += f"CAPTURE_SCREENSHOTS = {args.capture}\n"
@@ -337,8 +340,7 @@ if __name__ == "__main__":
             script_retry += f"EXPORT_URDF = {args.export_urdf}\n"
             script_retry += f"VISUAL_AUDIT = {args.visual_audit}\n"
             script_retry += f"PRODUCTION_REPORT = {not args.no_production_report}\n"
-            with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
-                script_retry += f.read()
+            script_retry += payload_retry
             res = run_simulation(script_retry)
             log = _get_log_text(res) if res else ""
         print(f"\nSimulation Complete!\n{log}")
