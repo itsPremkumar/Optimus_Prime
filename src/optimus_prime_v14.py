@@ -2405,11 +2405,11 @@ def run(context):
         vent_grille(bp, "BP_Vent", 0, 6.9, TORSO_CTR-0.5, "y", n_slots=6)
 
         # ─────────────────────────────────────────────────────────────────
-        # 7 STEER WHEEL PODS
+        # 7 STEER WHEEL PODS  (per-leg so they follow hip rotation)
         # ─────────────────────────────────────────────────────────────────
-        steer = new_component("OP_SteerPods")
         for side, sx in [("L", -5.6), ("R", 5.6)]:
             m2 = -1 if side == "L" else 1
+            steer = new_component(f"OP_SteerPod_{side}")
             box(steer, f"SAr_{side}",  sx, -3.6, 23.9, 1.6, 1.3, 4.2, chrome)
             box(steer, f"SPod_{side}", sx, -4.6, 23.4, 3.0, 2.2, 3.2, dark_grey)
             tt_wheel(steer, f"SW_{side}", sx+m2*2.0, -4.2, 23.4, m2)
@@ -2456,7 +2456,6 @@ def run(context):
         p  = occs.get("OP_Pelvis")
         h  = occs.get("OP_Head")
         b  = occs.get("OP_Backpack")
-        st = occs.get("OP_SteerPods")
         sh = occs.get("OP_Shields")
 
         if p:
@@ -2465,7 +2464,6 @@ def run(context):
         ball_joint("Waist_Cluster",  t,  p,  0, 0, WAIST_CTR-2.5)
         ball_joint("Neck_Cluster",   h,  t,  0, 0, NECK_JOINT_Z)
         rigid_joint("Backpack_Mount", b,  t)
-        rigid_joint("Steer_Mount",   st,  p)
         rigid_joint("Shields_Mount", sh,  t)
 
         for side in ["L", "R"]:
@@ -2482,6 +2480,11 @@ def run(context):
             ball_joint(f"{side}_Hip_Cluster",      th, p,  sx, 0, HIP_JOINT_Z)
             ball_joint(f"{side}_Knee",             sn, th, sx, 0, KNEE_CTR+1.5)
             ball_joint(f"{side}_Ankle_Cluster",    fo, sn, sx, 0, ANKLE_CTR+2.2)
+
+            # Steer-pod rigidly to thigh so wheels follow leg motion
+            st_occ = occs.get(f"OP_SteerPod_{side}")
+            rigid_joint(f"SteerPod_{side}_Mount", st_occ, th)
+
             ball_joint(f"{side}_Shoulder_Cluster", ua, t,  ax, 0, SHOULDER_CTR)
             revolute_joint(f"{side}_Elbow",        fa, ua, ax, 0, ELBOW_Z,      "x")
             ball_joint(f"{side}_Wrist",            ha, fa, ax, 0, WRIST_Z+0.8)
@@ -3398,7 +3401,7 @@ def run(context):
 
                 link_mass = {
                     "OP_Head": 280,       "OP_Torso": 950,    "OP_Pelvis": 480,
-                    "OP_Backpack": 150,   "OP_SteerPods": 120, "OP_Shields": 80,
+                    "OP_Backpack": 150,   "OP_SteerPod_L": 60, "OP_SteerPod_R": 60, "OP_Shields": 80,
                     "OP_Thigh_L": 250,    "OP_Thigh_R": 250,
                     "OP_Shin_L": 220,     "OP_Shin_R": 220,
                     "OP_Foot_L": 180,     "OP_Foot_R": 180,
