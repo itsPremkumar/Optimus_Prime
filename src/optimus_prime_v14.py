@@ -493,100 +493,89 @@ def run(context):
             applied_count = 0
             skipped_count = 0
 
-            # Step 1: Clear component-level appearance overrides so body
-            # appearances can shine through.  In Fusion 360 the component
-            # (occurrence) appearance takes priority over body appearance;
-            # if a default material is set at the component level every
-            # body inside it looks the same colour.
+            # Step 1: Clear component-level and occurrence-level appearance
+            # overrides so body-level appearances can show through.
             for comp in comps_list:
                 try:
-                    comp.appearance = None           # body-level wins
+                    comp.appearance = None
                 except Exception:
                     pass
-            # Also clear occurrence-level overrides
             for occ_name, occ in occs.items():
                 try:
                     occ.appearance = None
                 except Exception:
                     pass
 
-            # Step 2: Build a mapping from body-name keywords to the
-            # correct Optimus Prime colour, so that bodies which were
-            # never recorded (e.g. created by split / combine) still get
-            # the right colour.
-            keyword_color_map = []
+            # Step 2: Map component names to their dominant Optimus Prime color.
+            # This is robust because component names survive split/combine.
+            comp_color_map = {}
             if op_red:
-                for kw in ["Torso", "Hood", "Crease", "Badge", "TF_Flap",
-                           "Sh_Block", "Sh_Pad", "UA_Link", "FA_Fender",
-                           "Hand_Panel", "BP_Hood", "BP_TopFlap", "Boot",
-                           "Foot_Sole", "Thigh_Outer", "Crotch", "Head_Rear",
-                           "Estop", "Shell"]:
-                    keyword_color_map.append((kw, op_red))
+                for cn in ["OP_Torso", "OP_Backpack", "OP_UpperArm_L", "OP_UpperArm_R",
+                            "OP_Foot_L", "OP_Foot_R"]:
+                    comp_color_map[cn] = op_red
             if op_blue:
-                for kw in ["Shin", "Thigh_Main", "Thigh_Front", "Knee",
-                           "Pelvis", "Waist", "FA_Main", "FA_Core",
-                           "Forearm"]:
-                    keyword_color_map.append((kw, op_blue))
+                for cn in ["OP_Pelvis", "OP_Thigh_L", "OP_Thigh_R",
+                            "OP_Shin_L", "OP_Shin_R",
+                            "OP_Forearm_L", "OP_Forearm_R"]:
+                    comp_color_map[cn] = op_blue
             if chrome:
-                for kw in ["Grill", "Bumper", "Exhaust", "Faceplate",
-                           "Antenna", "Smokest", "Fist", "Wheel_Hub"]:
-                    keyword_color_map.append((kw, chrome))
-            if rubber_blk:
-                for kw in ["Tire", "Tread", "Wheel_Tire"]:
-                    keyword_color_map.append((kw, rubber_blk))
-            if glass_clr or op_blue_glass:
-                visor_ap = op_blue_glass or glass_clr
-                for kw in ["Visor", "Window", "Windshield", "Lens"]:
-                    keyword_color_map.append((kw, visor_ap))
-            if black_plastic or dark_metal:
-                joint_ap = black_plastic or dark_metal
-                for kw in ["Joint", "Pivot", "Axle", "Servo", "Horn",
-                           "Hub", "Bracket"]:
-                    keyword_color_map.append((kw, joint_ap))
-            if gold_met:
-                for kw in ["Badge_Core", "Autobot"]:
-                    keyword_color_map.append((kw, gold_met))
-            if yellow_met:
-                for kw in ["Headlight", "HeadLamp"]:
-                    keyword_color_map.append((kw, yellow_met))
-            if white_pla or nylon_white:
-                w_ap = white_pla or nylon_white
-                for kw in ["Eye", "Ear"]:
-                    keyword_color_map.append((kw, w_ap))
+                for cn in ["OP_Hand_L", "OP_Hand_R",
+                            "OP_SteerPod_L", "OP_SteerPod_R",
+                            "OP_Ion_Blaster", "OP_Shields"]:
+                    comp_color_map[cn] = chrome
+            if op_blue or glass_clr:
+                head_ap = op_blue or glass_clr
+                comp_color_map["OP_Head"] = head_ap
 
-            # Step 3: Apply — first try recorded name, then keyword fallback
+            # Step 3: Apply colors to every body in every component
             for comp in comps_list:
+                c_name = comp.name
+                ap = comp_color_map.get(c_name)
+
+                # Finger / thumb components get chrome
+                if not ap and chrome:
+                    if any(tag in c_name for tag in ["Pinky", "Ring", "Middle", "Index", "Thumb"]):
+                        ap = chrome
+
+                # Jig components get white/grey
+                if not ap and (white_pla or nylon_white):
+                    if c_name.startswith("JIG_"):
+                        ap = white_pla or nylon_white
+
+                if not ap:
+                    # Fallback: use body_colors dict for individually-colored bodies
+                    try:
+                        for body in comp.bRepBodies:
+                            if not body.isValid:
+                                continue
+                            b_name = body.name or ""
+                            base_name = b_name.split(" (")[0]
+                            b_ap = body_colors.get(b_name) or body_colors.get(base_name)
+                            if b_ap:
+                                try:
+                                    body.appearance = b_ap
+                                    applied_count += 1
+                                except Exception:
+                                    skipped_count += 1
+                            else:
+                                skipped_count += 1
+                    except Exception:
+                        pass
+                    continue
+
+                # Apply the component's dominant color to ALL its bodies
                 try:
                     for body in comp.bRepBodies:
                         if not body.isValid:
                             continue
-                        b_name = body.name
-                        if not b_name:
-                            continue
-
-                        # Try exact match first, then base name (strip split suffix)
-                        ap = body_colors.get(b_name)
-                        if not ap:
-                            base_name = b_name.split(" (")[0]
-                            ap = body_colors.get(base_name)
-
-                        # Keyword fallback
-                        if not ap:
-                            for kw, kw_ap in keyword_color_map:
-                                if kw.lower() in b_name.lower():
-                                    ap = kw_ap
-                                    break
-
-                        if ap:
-                            try:
-                                body.appearance = ap
-                                applied_count += 1
-                            except Exception:
-                                skipped_count += 1
-                        else:
+                        try:
+                            body.appearance = ap
+                            applied_count += 1
+                        except Exception:
                             skipped_count += 1
                 except Exception:
                     pass
+
             Logger.log(f"Final colors: {applied_count} applied, {skipped_count} skipped.")
 
         # ROBUST-V14-1: shared axis/dimension validation guards
