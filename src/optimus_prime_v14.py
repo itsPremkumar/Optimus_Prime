@@ -407,6 +407,14 @@ def run(context):
                 break
 
         def _copy_ap(query):
+            # First check if already in design appearances to avoid duplicate copy errors
+            try:
+                for ap in design.appearances:
+                    if query.lower() in ap.name.lower():
+                        return ap
+            except Exception:
+                pass
+
             if not app_lib:
                 return None
             for i in range(app_lib.appearances.count):
@@ -415,7 +423,13 @@ def run(context):
                     try:
                         return design.appearances.addByCopy(ap)
                     except Exception:
-                        return ap
+                        # Fallback: check design again in case of name conflict
+                        try:
+                            for existing_ap in design.appearances:
+                                if ap.name.lower() == existing_ap.name.lower():
+                                    return existing_ap
+                        except Exception:
+                            pass
             return None
 
         def get_ap(primary, *fallbacks):
@@ -463,8 +477,8 @@ def run(context):
             if body and ap:
                 try:
                     body.appearance = ap
-                except Exception:
-                    pass
+                except Exception as e:
+                    Logger.log(f"set_ap failed for body '{body.name if hasattr(body, 'name') else 'unknown'}' with appearance '{ap.name if hasattr(ap, 'name') else 'unknown'}': {str(e)}", "WARN")
 
         # ROBUST-V14-1: shared axis/dimension validation guards
         def _safe_axis(axis, default="z"):
