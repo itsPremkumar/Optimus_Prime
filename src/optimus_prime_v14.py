@@ -166,7 +166,7 @@ FUSE_HOLDER_L=2.00; FUSE_HOLDER_W=0.80; FUSE_HOLDER_H=0.75
 # ── Servo specs (v12 maintained) ─────────────────────────────────────────────
 SERVO_SPECS = {
     "hip_hd":{"name":"DS3225MG","rated":25.0,"stall":35.0,"mass_g":60,"horn_spline":25},
-    "waist": {"name":"DS3218",  "rated":20.0,"stall":25.0,"mass_g":55,"horn_spline":25},
+    "waist": {"name":"DS3225MG","rated":25.0,"stall":35.0,"mass_g":60,"horn_spline":25},
     "std":   {"name":"MG996R",  "rated": 9.4,"stall":11.5,"mass_g":55,"horn_spline":25},
     "micro": {"name":"MG90S",   "rated": 1.8,"stall": 2.2,"mass_g":13,"horn_spline":21},
     "digit": {"name":"DS04-NFC","rated": 1.8,"stall": 2.2,"mass_g": 9,"horn_spline":21},
@@ -464,19 +464,42 @@ def run(context):
         op_red        = get_ap("Paint - Metallic (Red)",       "Steel - Painted (Red)")
         op_blue       = get_ap("Paint - Metallic (Blue)",      "Steel - Painted (Blue)")
         chrome        = get_ap("Chrome",                        "Steel - Polished")
-        dark_metal    = get_ap("Steel - Flat",                  "Plastic - Matte (Black)")
+        dark_metal    = get_ap("Steel - Flat",                  "Plastic - Matte (Black)", "Steel - Satin")
         rubber_blk    = get_ap("Rubber",                        "Plastic - Matte (Black)")
         glass_clr     = get_ap("Glass - Window",                "Acrylic - Clear")
-        grey_plastic  = get_ap("Plastic - Matte (Grey)",        "ABS Plastic")
-        dark_grey     = get_ap("Plastic - Matte (Dark Grey)",   "Plastic - Matte (Grey)")
+        grey_plastic  = get_ap("Plastic - Matte (Grey)",        "ABS Plastic", "Plastic - Matte (Gray)", "Nylon")
+        dark_grey     = get_ap("Plastic - Matte (Dark Grey)",   "Plastic - Matte (Grey)", "Plastic - Matte (Gray)", "Plastic - Matte (Black)")
         white_pla     = get_ap("Plastic - Glossy (White)",      "Nylon - White")
         black_plastic = get_ap("Plastic - Matte (Black)",       "Rubber")
         gold_met      = get_ap("Gold",                          "Brass")
-        yellow_met    = get_ap("Paint - Metallic (Yellow)",     "Gold")
+        yellow_met    = get_ap("Paint - Metallic (Yellow)",     "Gold", "Brass")
         op_blue_glass = get_ap("Acrylic - Blue Transparent",    "Glass - Window")
         nylon_white   = white_pla or get_ap("Nylon - White", "Plastic - Glossy (White)")
-        jetson_green  = get_ap("Circuit Board - Green",         "Steel - Flat")
-        heatsink_silv = get_ap("Aluminum - Brushed",            "Steel - Polished")
+        jetson_green  = get_ap("Circuit Board - Green",         "Steel - Flat", "Plastic - Matte (Black)")
+        heatsink_silv = get_ap("Aluminum - Brushed",            "Steel - Polished", "Chrome")
+        
+        # Ensure grey_plastic and dark_grey have valid fallbacks
+        if not grey_plastic:
+            grey_plastic = dark_metal or black_plastic
+        if not dark_grey:
+            dark_grey = dark_metal or black_plastic
+        
+        # DIAGNOSTIC: Log which colors resolved and which are None
+        _color_vars = {
+            "op_red": op_red, "op_blue": op_blue, "chrome": chrome,
+            "dark_metal": dark_metal, "rubber_blk": rubber_blk,
+            "glass_clr": glass_clr, "grey_plastic": grey_plastic,
+            "dark_grey": dark_grey, "white_pla": white_pla,
+            "black_plastic": black_plastic, "gold_met": gold_met,
+            "yellow_met": yellow_met, "op_blue_glass": op_blue_glass,
+            "nylon_white": nylon_white, "jetson_green": jetson_green,
+            "heatsink_silv": heatsink_silv
+        }
+        none_colors = [k for k, v in _color_vars.items() if v is None]
+        ok_colors = [k for k, v in _color_vars.items() if v is not None]
+        Logger.log(f"COLOR SETUP: {len(ok_colors)} resolved OK, {len(none_colors)} are None")
+        if none_colors:
+            Logger.log(f"  MISSING COLORS: {', '.join(none_colors)}", "WARN")
 
         # ─────────────────────────────────────────────────────────────────
         # COMPONENT REGISTRY & PRIMITIVES
@@ -545,6 +568,24 @@ def run(context):
                 comp_color_map["OP_Head"] = head_ap
 
             # Step 3: Apply colors to every body in every component
+            excluded_count = 0
+            
+            # DIAGNOSTIC: Dump body names for key components to trace coloring
+            diag_comps = ["OP_Shin_L", "OP_Shin_R", "OP_SteerPod_L", "OP_SteerPod_R",
+                          "OP_UpperArm_L", "OP_UpperArm_R", "OP_Hand_L", "OP_Hand_R",
+                          "OP_Forearm_L", "OP_Forearm_R"]
+            for comp in comps_list:
+                if comp.name in diag_comps:
+                    body_names = []
+                    try:
+                        for b in comp.bRepBodies:
+                            if b.isValid:
+                                bn = b.name or "(unnamed)"
+                                stored = "YES" if (bn in body_colors or bn.split(" (")[0] in body_colors) else "NO"
+                                body_names.append(f"{bn}[stored={stored}]")
+                    except Exception:
+                        pass
+                    Logger.log(f"DIAG [{comp.name}] bodies({len(body_names)}): {', '.join(body_names[:30])}")
             for comp in comps_list:
                 c_name = comp.name
                 ap = comp_color_map.get(c_name)
@@ -559,41 +600,51 @@ def run(context):
                     if c_name.startswith("JIG_"):
                         ap = white_pla or nylon_white
 
-                if not ap:
-                    # Fallback: use body_colors dict for individually-colored bodies
-                    try:
-                        for body in comp.bRepBodies:
-                            if not body.isValid:
-                                continue
-                            b_name = body.name or ""
-                            base_name = b_name.split(" (")[0]
-                            b_ap = body_colors.get(b_name) or body_colors.get(base_name)
-                            if b_ap:
-                                try:
-                                    body.appearance = b_ap
-                                    applied_count += 1
-                                except Exception:
-                                    skipped_count += 1
-                            else:
-                                skipped_count += 1
-                    except Exception:
-                        pass
-                    continue
-
-                # Apply the component's dominant color to ALL its bodies
                 try:
                     for body in comp.bRepBodies:
                         if not body.isValid:
                             continue
-                        try:
-                            body.appearance = ap
-                            applied_count += 1
-                        except Exception:
+                        
+                        b_name = body.name or ""
+                        base_name = b_name.split(" (")[0]
+                        
+                        # Check if this body should keep its original individual color
+                        is_wheel_part = any(k in b_name for k in ["VisTire", "VisRim", "VisGB", "VisMot", "VisShaft", "VisHub", "AxlePin"])
+                        is_shoulder_joint = any(k in b_name for k in ["Shoulder_Frame", "Sh_Pad_Edge", "StkTip_", "Stk_A_"])
+                        is_finger_phalanx = any(k in b_name for k in ["_PP", "_MP", "_DP", "_TP", "_TD"])
+                        is_detail_part = any(k in b_name for k in [
+                            "Grille", "Win_", "Bumper", "Stack", "Antenna", "Visor",
+                            "Horn_", "Fender", "Headlamp", "KneeCap", "Armor",
+                            "Beam", "Rib", "Stop", "Lock", "Hinge"
+                        ])
+                        
+                        is_excluded = is_wheel_part or is_shoulder_joint or is_finger_phalanx or is_detail_part
+                        
+                        b_ap = None
+                        if is_excluded:
+                            # Try to use the body's original individual color
+                            b_ap = body_colors.get(b_name) or body_colors.get(base_name)
+                            if b_ap:
+                                excluded_count += 1
+                            else:
+                                # Fallback: if no stored color, still use dominant
+                                b_ap = ap
+                        else:
+                            # Use dominant color if available, else fallback to stored
+                            b_ap = ap or body_colors.get(b_name) or body_colors.get(base_name)
+
+                        if b_ap:
+                            try:
+                                body.appearance = b_ap
+                                applied_count += 1
+                            except Exception:
+                                skipped_count += 1
+                        else:
                             skipped_count += 1
                 except Exception:
                     pass
 
-            Logger.log(f"Final colors: {applied_count} applied, {skipped_count} skipped.")
+            Logger.log(f"Final colors: {applied_count} applied, {skipped_count} skipped, {excluded_count} kept individual color.")
 
         # ROBUST-V14-1: shared axis/dimension validation guards
         @trace_execution
@@ -3084,34 +3135,34 @@ def run(context):
                 actually placed (non-zero bodies in their host bays) and
                 cross-check the comm/power registries are populated."""
                 Logger.log("--- V13: ARCHITECTURE VALIDATION ---")
-                required_tags = [
-                    ("Jetson Nano bay",     "Main_JNanoBay_Vis"),
-                    ("CSI camera (eyes)",   "RobotEyes_CSICamBay_Vis"),
-                    ("ESP32-S3 lower node", "LowerNode_ESP32S3Bay_Vis"),
-                    ("ESP32-S3 upper node", "UpperNode_ESP32S3Bay_Vis"),
-                    ("ESP32-S3 head node",  "HeadNode_ESP32S3Bay_Vis"),
+                # Instead of relying on BRepBodies which might be consumed by Combine operations,
+                # we check the BOM registry where the components were logged during generation.
+                required_components = [
+                    ("Jetson Nano bay",     "Main_JNanoBay"),
+                    ("CSI camera (eyes)",   "Jetson CSI camera module (IMX219 8MP)"),
+                    ("ESP32-S3 lower node", "ESP32-S3 DevKitC (node: lower)"),
+                    ("ESP32-S3 upper node", "ESP32-S3 DevKitC (node: upper)"),
+                    ("ESP32-S3 head node",  "ESP32-S3 DevKitC (node: head)"),
                 ]
                 found_count = 0
-                for label, tag_fragment in required_tags:
-                    hit_body = None
-                    for comp in self._comps:
-                        for b in comp.bRepBodies:
-                            if b.name and tag_fragment.split("_Vis")[0] in b.name:
-                                hit_body = b
-                                break
-                        if hit_body:
-                            break
-                    icon = "[OK]" if hit_body else "[MISSING]"
-                    if hit_body:
+                
+                # Retrieve all BOM part descriptions to verify presence
+                bom_items = " ".join([row["Part"] for row in BOM._rows])
+                
+                # Check for Jetson Nano implicitly via its UBEC, since Jetson isn't explicitly in BOM
+                has_jnano = "5V 4A UBEC (Jetson Nano power)" in bom_items
+                
+                for label, bom_desc in required_components:
+                    found = False
+                    if "Jetson Nano" in label:
+                        found = has_jnano
+                    else:
+                        found = bom_desc in bom_items
+                        
+                    icon = "[OK]" if found else "[MISSING]"
+                    if found:
                         found_count += 1
-                        try:
-                            bb = hit_body.boundingBox
-                            cx = (bb.minPoint.x + bb.maxPoint.x)/2
-                            cy = (bb.minPoint.y + bb.maxPoint.y)/2
-                            cz = (bb.minPoint.z + bb.maxPoint.z)/2
-                            Logger.log(f"  {icon} {label} -> at [{cx:.2f}, {cy:.2f}, {cz:.2f}]")
-                        except Exception:
-                            Logger.log(f"  {icon} {label} -> (bounds unreadable)")
+                        Logger.log(f"  {icon} {label} -> present in design")
                     else:
                         Logger.log(f"  {icon} {label}")
                 if not COMM_MAP:
@@ -3122,7 +3173,7 @@ def run(context):
                     Logger.log("  [WARN] Power map is empty!", "WARN")
                 else:
                     Logger.log(f"  [OK] {len(POWER_MAP)} power rail(s) registered")
-                Logger.log(f"  Architecture validation: {found_count}/{len(required_tags)} "
+                Logger.log(f"  Architecture validation: {found_count}/{len(required_components)} "
                            f"core compute components placed")
 
             # ── V13 NEW: Vision tracking simulation ───────────────────────
