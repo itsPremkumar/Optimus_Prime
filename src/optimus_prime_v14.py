@@ -416,13 +416,16 @@ def run(context):
                 pass
 
             if not app_lib:
+                Logger.log(f"_copy_ap: app_lib is None! Cannot copy '{query}'", "WARN")
                 return None
             for i in range(app_lib.appearances.count):
                 ap = app_lib.appearances.item(i)
                 if query.lower() in ap.name.lower():
                     try:
-                        return design.appearances.addByCopy(ap)
-                    except Exception:
+                        new_ap = design.appearances.addByCopy(ap, ap.name)
+                        Logger.log(f"_copy_ap: successfully copied '{query}' -> '{new_ap.name}'")
+                        return new_ap
+                    except Exception as e:
                         # Fallback: check design again in case of name conflict
                         try:
                             for existing_ap in design.appearances:
@@ -430,6 +433,8 @@ def run(context):
                                     return existing_ap
                         except Exception:
                             pass
+                        Logger.log(f"_copy_ap: addByCopy failed for '{query}': {e}", "WARN")
+            Logger.log(f"_copy_ap: '{query}' not found in library '{app_lib.name}'", "WARN")
             return None
 
         def get_ap(primary, *fallbacks):
@@ -473,12 +478,116 @@ def run(context):
             occs[name] = occ
             return comp
 
+        body_colors = {}
         def set_ap(body, ap):
             if body and ap:
                 try:
                     body.appearance = ap
+                    if hasattr(body, 'name') and body.name:
+                        body_colors[body.name] = ap
                 except Exception as e:
                     Logger.log(f"set_ap failed for body '{body.name if hasattr(body, 'name') else 'unknown'}' with appearance '{ap.name if hasattr(ap, 'name') else 'unknown'}': {str(e)}", "WARN")
+
+        def apply_final_colors():
+            Logger.log("Re-applying final colors to all bodies...")
+            applied_count = 0
+            skipped_count = 0
+
+            # Step 1: Clear component-level appearance overrides so body
+            # appearances can shine through.  In Fusion 360 the component
+            # (occurrence) appearance takes priority over body appearance;
+            # if a default material is set at the component level every
+            # body inside it looks the same colour.
+            for comp in comps_list:
+                try:
+                    comp.appearance = None           # body-level wins
+                except Exception:
+                    pass
+            # Also clear occurrence-level overrides
+            for occ_name, occ in occs.items():
+                try:
+                    occ.appearance = None
+                except Exception:
+                    pass
+
+            # Step 2: Build a mapping from body-name keywords to the
+            # correct Optimus Prime colour, so that bodies which were
+            # never recorded (e.g. created by split / combine) still get
+            # the right colour.
+            keyword_color_map = []
+            if op_red:
+                for kw in ["Torso", "Hood", "Crease", "Badge", "TF_Flap",
+                           "Sh_Block", "Sh_Pad", "UA_Link", "FA_Fender",
+                           "Hand_Panel", "BP_Hood", "BP_TopFlap", "Boot",
+                           "Foot_Sole", "Thigh_Outer", "Crotch", "Head_Rear",
+                           "Estop", "Shell"]:
+                    keyword_color_map.append((kw, op_red))
+            if op_blue:
+                for kw in ["Shin", "Thigh_Main", "Thigh_Front", "Knee",
+                           "Pelvis", "Waist", "FA_Main", "FA_Core",
+                           "Forearm"]:
+                    keyword_color_map.append((kw, op_blue))
+            if chrome:
+                for kw in ["Grill", "Bumper", "Exhaust", "Faceplate",
+                           "Antenna", "Smokest", "Fist", "Wheel_Hub"]:
+                    keyword_color_map.append((kw, chrome))
+            if rubber_blk:
+                for kw in ["Tire", "Tread", "Wheel_Tire"]:
+                    keyword_color_map.append((kw, rubber_blk))
+            if glass_clr or op_blue_glass:
+                visor_ap = op_blue_glass or glass_clr
+                for kw in ["Visor", "Window", "Windshield", "Lens"]:
+                    keyword_color_map.append((kw, visor_ap))
+            if black_plastic or dark_metal:
+                joint_ap = black_plastic or dark_metal
+                for kw in ["Joint", "Pivot", "Axle", "Servo", "Horn",
+                           "Hub", "Bracket"]:
+                    keyword_color_map.append((kw, joint_ap))
+            if gold_met:
+                for kw in ["Badge_Core", "Autobot"]:
+                    keyword_color_map.append((kw, gold_met))
+            if yellow_met:
+                for kw in ["Headlight", "HeadLamp"]:
+                    keyword_color_map.append((kw, yellow_met))
+            if white_pla or nylon_white:
+                w_ap = white_pla or nylon_white
+                for kw in ["Eye", "Ear"]:
+                    keyword_color_map.append((kw, w_ap))
+
+            # Step 3: Apply — first try recorded name, then keyword fallback
+            for comp in comps_list:
+                try:
+                    for body in comp.bRepBodies:
+                        if not body.isValid:
+                            continue
+                        b_name = body.name
+                        if not b_name:
+                            continue
+
+                        # Try exact match first, then base name (strip split suffix)
+                        ap = body_colors.get(b_name)
+                        if not ap:
+                            base_name = b_name.split(" (")[0]
+                            ap = body_colors.get(base_name)
+
+                        # Keyword fallback
+                        if not ap:
+                            for kw, kw_ap in keyword_color_map:
+                                if kw.lower() in b_name.lower():
+                                    ap = kw_ap
+                                    break
+
+                        if ap:
+                            try:
+                                body.appearance = ap
+                                applied_count += 1
+                            except Exception:
+                                skipped_count += 1
+                        else:
+                            skipped_count += 1
+                except Exception:
+                    pass
+            Logger.log(f"Final colors: {applied_count} applied, {skipped_count} skipped.")
 
         # ROBUST-V14-1: shared axis/dimension validation guards
         def _safe_axis(axis, default="z"):
@@ -3729,7 +3838,9 @@ def run(context):
             Logger.log(f"Archive skipped: {e}", "WARN")
 
         sim = SimulationEngine(root, comps_list, design, app, ui)
+        apply_final_colors()   # apply before simulation so screenshots show colours
         sim.run_all_simulations()
+        apply_final_colors()   # re-apply after simulation in case poses reset them
         Logger.log("v14 script finished successfully.")
 
     except Exception:
