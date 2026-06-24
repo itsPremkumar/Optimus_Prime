@@ -1,3 +1,13 @@
+# =================================================================
+# GLOBAL DEBUG CONFIGURATION
+# =================================================================
+DEBUG_MODE = True
+DEBUG_GEOMETRY = True
+DEBUG_MECHANICAL = True
+DEBUG_ELECTRONICS = True
+DEBUG_COMMUNICATION = True
+DEBUG_EXPORT = True
+
 if 'TARGET_MODULE'     not in globals(): TARGET_MODULE     = "ALL"
 if 'EXPORT_STL'        not in globals(): EXPORT_STL        = True
 if 'EXPORT_STEP'       not in globals(): EXPORT_STEP       = True
@@ -216,18 +226,73 @@ def _reg_sensor(kind, comp, location, node):
 class Logger:
     _buffer = []
     _count  = 0
-    _max_buffer = 500   # ROBUST-V14-5: cap buffer growth if disk flush keeps failing
+    _max_buffer = 500
+    
+    # Debug Tracking
+    stats = {
+        "execution_time": 0,
+        "successes": 0,
+        "failures": 0,
+        "warnings": 0,
+        "errors": 0
+    }
+    bugs = []
 
     @classmethod
     def log(cls, msg, level="INFO"):
+        if level == "WARN": cls.stats["warnings"] += 1
+        if level == "ERROR": cls.stats["errors"] += 1
+        
         ts   = datetime.datetime.now().strftime("%H:%M:%S")
         line = f"[{ts}] [{level}] {msg}\n"
         safe = line.encode("ascii", "replace").decode("ascii")
-        print(safe, end="", flush=True)
+        print(safe, end="", flush=False)
         cls._buffer.append(line)
         cls._count += 1
-        if cls._count >= 20 or len(cls._buffer) > cls._max_buffer:
+        if len(cls._buffer) > 2000:
             cls.flush()
+
+    @classmethod
+    def log_bug(cls, component, issue, severity, location, recommended_fix):
+        bug_entry = {
+            "component": component,
+            "issue": issue,
+            "severity": severity,
+            "location": location,
+            "fix": recommended_fix
+        }
+        cls.bugs.append(bug_entry)
+        cls.log(f"BUG DETECTED [{severity}] {component} - {issue}", "ERROR")
+
+    @classmethod
+    def generate_debug_report(cls):
+        cls.flush()
+        report_path = os.path.join(_OUT, f"OPTIMUS_DEBUG_REPORT_v14.txt")
+        try:
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write("=================================================================\n")
+                f.write("OPTIMUS PRIME G1 - END-TO-END DEBUG REPORT\n")
+                f.write("=================================================================\n\n")
+                
+                f.write(f"Total Execution Time : {cls.stats['execution_time']:.2f} seconds\n")
+                f.write(f"Successful Operations: {cls.stats['successes']}\n")
+                f.write(f"Failed Operations    : {cls.stats['failures']}\n")
+                f.write(f"Total Warnings       : {cls.stats['warnings']}\n")
+                f.write(f"Total Errors         : {cls.stats['errors']}\n\n")
+                
+                f.write("--- DETECTED BUGS ---\n")
+                if not cls.bugs:
+                    f.write("No bugs detected.\n")
+                else:
+                    for i, b in enumerate(cls.bugs, 1):
+                        f.write(f"\nBug #{i}: [{b['severity']}] {b['component']}\n")
+                        f.write(f"  Issue   : {b['issue']}\n")
+                        f.write(f"  Location: {b['location']}\n")
+                        f.write(f"  Fix     : {b['fix']}\n")
+                        
+            cls.log(f"Debug report generated -> {report_path}")
+        except Exception as e:
+            cls.log(f"Failed to write debug report: {e}", "ERROR")
 
     @classmethod
     def flush(cls):
@@ -241,6 +306,45 @@ class Logger:
             pass
         cls._buffer.clear()
         cls._count = 0
+        
+import functools
+def trace_execution(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not DEBUG_MODE:
+            return func(*args, **kwargs)
+            
+        func_name = func.__name__
+        Logger.log(f"\n[DEBUG] Function: {func_name}()", "DEBUG")
+        
+        safe_args = [repr(a) for a in args]
+        safe_kwargs = [f"{k}={repr(v)}" for k, v in kwargs.items()]
+        params = ", ".join(safe_args + safe_kwargs)
+        if params:
+            Logger.log(f"Input: {params[:200]}{'...' if len(params)>200 else ''}", "DEBUG")
+            
+        Logger.log("Status: Started", "DEBUG")
+        start_time = time.time()
+        
+        try:
+            result = func(*args, **kwargs)
+            exec_time = time.time() - start_time
+            Logger.log(f"Status: Completed in {exec_time:.4f}s", "DEBUG")
+            Logger.stats["successes"] += 1
+            return result
+        except Exception as e:
+            exec_time = time.time() - start_time
+            Logger.log(f"Status: Failed in {exec_time:.4f}s - {type(e).__name__}: {e}", "ERROR")
+            Logger.stats["failures"] += 1
+            Logger.log_bug(
+                component=func_name,
+                issue=f"Runtime exception: {str(e)}",
+                severity="High",
+                location=f"Function {func_name}",
+                recommended_fix="Wrap operation in try/except and validate all inputs/API references."
+            )
+            return None
+    return wrapper
 
 
 class BOM:
@@ -314,6 +418,7 @@ def run(context):
                 app_lib = lib
                 break
 
+        @trace_execution
         def _copy_ap(query):
             # First check if already in design appearances to avoid duplicate copy errors
             try:
@@ -345,6 +450,7 @@ def run(context):
             Logger.log(f"_copy_ap: '{query}' not found in library '{app_lib.name}'", "WARN")
             return None
 
+        @trace_execution
         def get_ap(primary, *fallbacks):
             ap = _copy_ap(primary)
             if ap:
@@ -378,6 +484,7 @@ def run(context):
         comps_list = []
         occs       = {}
 
+        @trace_execution
         def new_component(name):
             occ  = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
             comp = occ.component
@@ -387,6 +494,7 @@ def run(context):
             return comp
 
         body_colors = {}
+        @trace_execution
         def set_ap(body, ap):
             if body and ap:
                 try:
@@ -396,6 +504,7 @@ def run(context):
                 except Exception as e:
                     Logger.log(f"set_ap failed for body '{body.name if hasattr(body, 'name') else 'unknown'}' with appearance '{ap.name if hasattr(ap, 'name') else 'unknown'}': {str(e)}", "WARN")
 
+        @trace_execution
         def apply_final_colors():
             Logger.log("Re-applying final colors to all bodies...")
             applied_count = 0
@@ -487,49 +596,63 @@ def run(context):
             Logger.log(f"Final colors: {applied_count} applied, {skipped_count} skipped.")
 
         # ROBUST-V14-1: shared axis/dimension validation guards
+        @trace_execution
         def _safe_axis(axis, default="z"):
             if axis not in ("x", "y", "z"):
                 Logger.log(f"Invalid axis '{axis}', defaulting to '{default}'", "WARN")
                 return default
             return axis
 
+        @trace_execution
         def box(comp, name, cx, cy, cz, lx, ly, lz, ap=None):
             if lx <= 0 or ly <= 0 or lz <= 0:
                 Logger.log(f"box({name}): invalid dims {lx},{ly},{lz} -- skipped", "WARN")
                 return None
-            temp  = adsk.fusion.TemporaryBRepManager.get()
-            obb   = adsk.core.OrientedBoundingBox3D.create(
-                        adsk.core.Point3D.create(cx, cy, cz),
-                        adsk.core.Vector3D.create(1, 0, 0),
-                        adsk.core.Vector3D.create(0, 1, 0),
-                        lx, ly, lz)
-            shape = temp.createBox(obb)
-            bf    = comp.features.baseFeatures.add()
-            bf.startEdit()
-            body  = comp.bRepBodies.add(shape, bf)
-            bf.finishEdit()
-            body.name = name
-            set_ap(body, ap)
-            return body
+            try:
+                temp  = adsk.fusion.TemporaryBRepManager.get()
+                obb   = adsk.core.OrientedBoundingBox3D.create(
+                            adsk.core.Point3D.create(cx, cy, cz),
+                            adsk.core.Vector3D.create(1, 0, 0),
+                            adsk.core.Vector3D.create(0, 1, 0),
+                            lx, ly, lz)
+                shape = temp.createBox(obb)
+                bf    = comp.features.baseFeatures.add()
+                bf.startEdit()
+                body  = comp.bRepBodies.add(shape, bf)
+                bf.finishEdit()
+                if body:
+                    body.name = name
+                    set_ap(body, ap)
+                return body
+            except Exception as e:
+                Logger.log(f"box({name}) failed: {e}", "ERROR")
+                return None
 
+        @trace_execution
         def cyl(comp, name, cx, cy, cz, r, h, axis, ap=None):
             axis = _safe_axis(axis)
             if r <= 0 or h <= 0:
                 Logger.log(f"cyl({name}): invalid dims r={r} h={h} -- skipped", "WARN")
                 return None
-            temp = adsk.fusion.TemporaryBRepManager.get()
-            av   = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
-            p1   = adsk.core.Point3D.create(cx-av[0]*h/2, cy-av[1]*h/2, cz-av[2]*h/2)
-            p2   = adsk.core.Point3D.create(cx+av[0]*h/2, cy+av[1]*h/2, cz+av[2]*h/2)
-            shape = temp.createCylinderOrCone(p1, r, p2, r)
-            bf    = comp.features.baseFeatures.add()
-            bf.startEdit()
-            body  = comp.bRepBodies.add(shape, bf)
-            bf.finishEdit()
-            body.name = name
-            set_ap(body, ap)
-            return body
+            try:
+                temp = adsk.fusion.TemporaryBRepManager.get()
+                av   = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
+                p1   = adsk.core.Point3D.create(cx-av[0]*h/2, cy-av[1]*h/2, cz-av[2]*h/2)
+                p2   = adsk.core.Point3D.create(cx+av[0]*h/2, cy+av[1]*h/2, cz+av[2]*h/2)
+                shape = temp.createCylinderOrCone(p1, r, p2, r)
+                bf    = comp.features.baseFeatures.add()
+                bf.startEdit()
+                body  = comp.bRepBodies.add(shape, bf)
+                bf.finishEdit()
+                if body:
+                    body.name = name
+                    set_ap(body, ap)
+                return body
+            except Exception as e:
+                Logger.log(f"cyl({name}) failed: {e}", "ERROR")
+                return None
 
+        @trace_execution
         def cone_shape(comp, name, cx, cy, cz, r1, r2, h, axis, ap=None):
             axis = _safe_axis(axis)
             if r1 < 0 or r2 < 0 or h <= 0:
@@ -548,10 +671,12 @@ def run(context):
             set_ap(body, ap)
             return body
 
+        @trace_execution
         def marker(comp, name, cx, cy, cz, size=0.22):
             return box(comp, name, cx, cy, cz, size, size, size, white_pla)
 
         # ── MFG-V14-1: TRUE 45-degree printable chamfer ────────────────────
+        @trace_execution
         def chamfer_wedge_cut(comp, tag, run_axis, run_center, run_len,
                               p_corner, q_corner, chamfer):
             """Cuts a genuine 45-degree wedge along an edge that runs parallel
@@ -596,6 +721,7 @@ def run(context):
                 Logger.log(f"chamfer_wedge_cut failed for {tag}: {e}", "WARN")
                 return False
 
+        @trace_execution
         def chamfer_box(comp, name, cx, cy, cz, lx, ly, lz, axis, chamfer=0.25, ap=None):
             """MFG-3 / MFG-V14-1 — Box with a TRUE 45-degree wedge chamfer cut
             into its bottom-front edge (-Y face meeting -Z face, the model's
@@ -617,6 +743,7 @@ def run(context):
             return main
 
         # ── Boolean cavity cutter ─────────────────────────────────────────
+        @trace_execution
         def cut_cavity(comp, tool_body, keep_tool=False):
             """ROBUST-V14-2 — Re-fetches both the tool and each target body by
             name immediately before every combine call. Sequential combine
@@ -668,6 +795,7 @@ def run(context):
             return success
 
         # ── Shell splitter for FDM printing ───────────────────────────────
+        @trace_execution
         def split_halves(comp, body, axis="y", offset=0.0):
             """ROBUST-V14-3 — Validates the split actually produced >=2
             bodies before declaring success; many silent split failures in
@@ -697,6 +825,7 @@ def run(context):
                 return False
 
         # ── MFG-1 — Post-split fastener merge (None-safe on either side) ──
+        @trace_execution
         def merge_fasteners_to_halves(comp, body_left, body_right, axis="y"):
             """After split, merge Pin/Boss/Insert/Nut/Snap bodies to the
             nearest shell half based on position relative to the split plane.
@@ -747,6 +876,7 @@ def run(context):
                 except Exception as e:
                     Logger.log(f"merge_fastener failed for {f_name}: {e}", "DEBUG")
 
+        @trace_execution
         def printability_check(comp, body_name, overhang_angle_deg=45):
             """MFG-2 — Heuristic overhang/support warning logger."""
             high_risk = {"spike", "chin", "heel", "vent", "flap", "undercut",
@@ -770,6 +900,7 @@ def run(context):
         # PHYSICAL FEATURE HELPERS  (PHY-1 … PHY-11, kept from v12)
         # ─────────────────────────────────────────────────────────────────
 
+        @trace_execution
         def m3_boss(comp, tag, cx, cy, cz, axis="z", depth=0.80, screw_len=1.2):
             """PHY-1 — Ø7 mm boss cylinder + Ø4.7 mm heat-set insert pocket."""
             boss = cyl(comp, f"{tag}_Boss", cx, cy, cz, BOSS_R, depth, axis, dark_metal)
@@ -785,6 +916,7 @@ def run(context):
                 "cx": cx, "cy": cy, "cz": cz,
             })
 
+        @trace_execution
         def captive_nut(comp, tag, cx, cy, cz, axis="z", bolt_len=1.2):
             """PHY-2 — M3 hex-nut trap + clearance through-bore."""
             cut_cavity(comp, cyl(comp, f"{tag}_NutTrap",
@@ -800,6 +932,7 @@ def run(context):
                 "cx": cx, "cy": cy, "cz": cz,
             })
 
+        @trace_execution
         def snap_clip(comp, tag, cx, cy, cz, span_x=1.2, axis_latch="z"):
             """PHY-3 — Cantilever snap-fit pair."""
             for sign in [-1, 1]:
@@ -809,20 +942,24 @@ def run(context):
                 box(comp, f"{tag}_SnapHead_{sign}",
                     arm_cx, cy, cz + 0.55, WALL_F + 0.10, 0.50, 0.28, grey_plastic)
 
+        @trace_execution
         def align_pin(comp, tag, cx, cy, cz, axis="z", height=0.40):
             """PHY-4a — Ø2 mm alignment pin."""
             cyl(comp, f"{tag}_AlignPin", cx, cy, cz, ALIGN_PIN_R, height, axis, chrome)
 
+        @trace_execution
         def align_socket(comp, tag, cx, cy, cz, axis="z", depth=0.45):
             """PHY-4b — Ø2.15 mm alignment socket."""
             cut_cavity(comp, cyl(comp, f"{tag}_AlignSock",
                                  cx, cy, cz, ALIGN_PIN_R + 0.015, depth, axis))
 
+        @trace_execution
         def grommet_hole(comp, tag, cx, cy, cz, axis="y"):
             """PHY-5 — Ø3.5 mm servo wire-exit groove."""
             cut_cavity(comp, cyl(comp, f"{tag}_Grommet",
                                  cx, cy, cz, GROMMET_R, 0.80, axis))
 
+        @trace_execution
         def horn_coupler(comp, tag, cx, cy, cz, axis, servo_type="std"):
             """PHY-6 — Servo output-shaft coupler with keyed slot, clamp hub,
             and set-screw pocket."""
@@ -872,6 +1009,7 @@ def run(context):
             BOM.add("Fastener", "M3x4 set screw (cup point)", 1, comp.name)
             ASSEMBLY_STEPS.append(f"Install {tag} coupler onto {spec_name} servo horn; tighten set-screw")
 
+        @trace_execution
         def servo_drum(comp, tag, cx, cy, cz, axis="z"):
             """PHY-7 — Tendon winch drum with flanges + tie-off hole."""
             cyl(comp, f"{tag}_DrumBarrel", cx, cy, cz, DRUM_R, DRUM_H, axis, dark_metal)
@@ -884,17 +1022,20 @@ def run(context):
                                  0.06, DRUM_R*2.2, tie_axis))
             BOM.add("Printed", "Servo winch drum (tendon drive)", 1, comp.name)
 
+        @trace_execution
         def tendon_guide(comp, tag, cx, cy, cz, length, axis="z"):
             """PHY-8 — V-groove tendon guide channel."""
             gr = TENDON_GUIDE_R + 0.02
             cut_cavity(comp, cyl(comp, f"{tag}_TendonGuide", cx, cy, cz, gr, length, axis))
 
+        @trace_execution
         def tendon_anchor(comp, tag, cx, cy, cz, axis="z"):
             """PHY-9 — Distal tendon anchor + crimp slot."""
             box(comp, f"{tag}_Anchor", cx, cy, cz, 0.35, 0.28, 0.22, dark_metal)
             cut_cavity(comp, box(comp, f"{tag}_CrimpSlot", cx, cy, cz, 0.06, 0.30, 0.14))
             BOM.add("Hardware", "Tendon anchor (printed)", 1, comp.name)
 
+        @trace_execution
         def palm_pulley(comp, tag, cx, cy, cz, axis="x"):
             """PHY-10 — Idler pulley / guide post."""
             cyl(comp, f"{tag}_PulleyPost", cx, cy, cz, 0.12, 0.50, axis, chrome)
@@ -902,6 +1043,7 @@ def run(context):
             cyl(comp, f"{tag}_PulleyWheel", cx, cy, cz, PULLEY_R, 0.14, pulley_axis, grey_plastic)
             BOM.add("Printed", "Palm idler pulley", 1, comp.name)
 
+        @trace_execution
         def spring_return(comp, tag, cx, cy, cz, axis="x"):
             """PHY-11 — Torsion-spring pocket for finger extension."""
             cut_cavity(comp, cyl(comp, f"{tag}_SpringPkt", cx, cy, cz,
@@ -918,32 +1060,39 @@ def run(context):
             BOM.add("Hardware", "Torsion spring (finger return)", 1, comp.name)
 
         # ── Generic fastener / utility helpers ────────────────────────────
+        @trace_execution
         def screw_hole(comp, cx, cy, cz, axis="y", length=3.0):
             cut_cavity(comp, cyl(comp, "ScrewHole", cx, cy, cz, M3_PILOT_R, length, axis))
             BOM.add("Fastener", f"M3x{int(length*10)} self-tap", 1, comp.name)
 
+        @trace_execution
         def magnet_pocket(comp, tag, cx, cy, cz, axis="z"):
             cut_cavity(comp, cyl(comp, f"{tag}_MagPkt", cx, cy, cz, 0.32, 0.35, axis))
             BOM.add("Hardware", "Magnet D6x3 mm N35", 1, comp.name)
 
+        @trace_execution
         def wire_channel(comp, tag, cx, cy, cz, r, h, axis):
             cut_cavity(comp, cyl(comp, f"{tag}_Wire", cx, cy, cz, r, h, axis))
 
+        @trace_execution
         def led_pocket_5mm(comp, tag, cx, cy, cz, axis="y"):
             cut_cavity(comp, cyl(comp, f"{tag}_LED5", cx, cy, cz, LED_R_5MM, 0.85, axis))
             BOM.add("Electronics", "LED 5 mm (colour TBD)", 1, comp.name)
 
+        @trace_execution
         def led_ring_pocket(comp, tag, cx, cy, cz, axis="z"):
             cut_cavity(comp, cyl(comp, f"{tag}_LEDRing", cx, cy, cz, LED_R_RING, 0.30, axis))
             BOM.add("Electronics", "WS2812 5050 LED ring Ø12 mm", 1, comp.name)
 
         # ── CAB-1 … CAB-4 ──────────────────────────────────────────────────
+        @trace_execution
         def cable_clip(comp, tag, cx, cy, cz, axis="y"):
             box(comp, f"{tag}_ClipBase", cx, cy, cz, CABLE_CLIP_W, 0.15, 0.35, grey_plastic)
             cyl(comp, f"{tag}_ClipArch", cx, cy, cz + 0.06,
                 CABLE_CLIP_R + 0.08, CABLE_CLIP_W, "x", grey_plastic)
             BOM.add("Printed", "Snap-in cable clip", 1, comp.name)
 
+        @trace_execution
         def wire_hub(comp, tag, cx, cy, cz):
             box(comp, f"{tag}_HubBlock", cx, cy, cz, 2.0, 1.6, 1.2, dark_grey)
             for dx, dy, dz, lbl in [(-1.0,0,0,"L"), (1.0,0,0,"R"),
@@ -955,17 +1104,20 @@ def run(context):
                     "y" if abs(dy) > abs(dz) else "z")
             BOM.add("Printed", "Torso wire hub", 1, comp.name)
 
+        @trace_execution
         def grommet_slot(comp, tag, cx, cy, cz, axis="y", width=0.50):
             cut_cavity(comp, cyl(comp, f"{tag}_GromSlot", cx, cy, cz, GROMMET_R, width, axis))
             seat_r = GROMMET_R + 0.06
             cut_cavity(comp, cyl(comp, f"{tag}_GromSeat", cx, cy, cz, seat_r, 0.10, axis))
             BOM.add("Hardware", "Rubber grommet Ø3.5 mm (open slot)", 1, comp.name)
 
+        @trace_execution
         def jst_pocket(comp, tag, cx, cy, cz, axis="y"):
             cut_cavity(comp, box(comp, f"{tag}_JST", cx, cy, cz,
                 JST_XH_L + 0.10, JST_XH_W + 0.10, JST_XH_H + 0.10))
 
         # ── BRG-2 / BRG-3 ──────────────────────────────────────────────────
+        @trace_execution
         def bearing_fit(comp, tag, cx, cy, cz, axis="x", ro=1.10, w=0.60, fit_type="press"):
             tol = (BEARING_FIT_TOLERANCE if fit_type == "press" else
                    0.0 if fit_type == "glue" else 0.015)
@@ -993,6 +1145,7 @@ def run(context):
             BOM.add("Bearing", f"O{int(ro*2*10)} mm bearing ({fit_label})", 1, comp.name)
             BOM.add("Hardware", f"Bearing {fit_label} tolerance", 1, comp.name)
 
+        @trace_execution
         def dual_bearing(comp, tag, cx, cy, cz, axis="x", ro=1.10, w=0.60,
                          span=2.50, fit_type="press"):
             av = {"x": (1,0,0), "y": (0,1,0), "z": (0,0,1)}[axis]
@@ -1007,11 +1160,13 @@ def run(context):
                     1, comp.name)
             ASSEMBLY_STEPS.append(f"Install {tag} bearings into carrier; insert steel axle")
 
+        @trace_execution
         def bearing(comp, tag, cx, cy, cz, axis="x", ro=1.10, w=0.60):
             """Legacy wrapper -> redirects to bearing_fit (glue-fit default)."""
             bearing_fit(comp, tag, cx, cy, cz, axis, ro, w, fit_type="glue")
 
         # ── COV-1 / COV-2 / COV-3 ──────────────────────────────────────────
+        @trace_execution
         def cover_plate(comp, tag, cx, cy, cz, lx, lz, boss_positions,
                         method="screw", hinge_edge=None, ap=None):
             ap = ap or grey_plastic
@@ -1038,6 +1193,7 @@ def run(context):
             PRINT_NOTES.append((f"{tag}_Cover", "print flat (face down)", False))
             return cover
 
+        @trace_execution
         def lipo_door(comp, tag, cx, cy, cz, lx, lz):
             cover_plate(comp, tag, cx, cy, cz, lx, lz,
                         [(-lx/2+0.6,-lz/2+0.6), (lx/2-0.6,-lz/2+0.6),
@@ -1049,6 +1205,7 @@ def run(context):
                     cx, cy+0.01, cz+vz, lx*0.6, 0.08, 0.12))
             BOM.add("Printed", "LiPo bay door (vented)", 1, comp.name)
 
+        @trace_execution
         def pcb_cover(comp, tag, cx, cy, cz, lx, lz, method="screw"):
             cover_plate(comp, tag, cx, cy, cz, lx, lz,
                         [(-lx/2+0.5,-lz/2+0.5), (lx/2-0.5,-lz/2+0.5),
@@ -1060,6 +1217,7 @@ def run(context):
             BOM.add("Printed", f"PCB cover ({method})", 1, comp.name)
 
         # ── JIG-1 ──────────────────────────────────────────────────────────
+        @trace_execution
         def assembly_jig(comp_name, pin_positions, socket_positions, base_size):
             jig = new_component(f"JIG_{comp_name}")
             lx, ly, lz = base_size
@@ -1075,6 +1233,7 @@ def run(context):
             return jig
 
         # ── BUGFIX-V13-3: FST-1 with empty-registry guard ─────────────────
+        @trace_execution
         def verify_screw_lengths():
             """FST-1 — Validate registered screw lengths. Guards against an
             empty SCREW_REGISTRY (would previously just print '0 issues' with
@@ -1118,6 +1277,7 @@ def run(context):
         # V13 NEW: JETSON NANO + ESP32-S3 + VISION/SENSOR ELECTRONICS BAYS
         # ─────────────────────────────────────────────────────────────────
 
+        @trace_execution
         def jetson_nano_bay(comp, tag, cx, cy, cz):
             """ELEC-V13-1 — NVIDIA Jetson Nano compact-carrier pocket.
             Includes: module clearance, 30mm fan mount, heatsink clearance,
@@ -1176,6 +1336,7 @@ def run(context):
             _reg_power("Jetson_5V", 5.0, 3.0, ["Jetson Nano module", "fan"])
             Logger.log(f"  Jetson Nano bay created: {tag} in {comp.name}")
 
+        @trace_execution
         def csi_camera_pocket(comp, tag, cx, cy, cz, lens_axis="y"):
             """ELEC-V13-2 — IMX219 CSI-2 camera pocket (replaces ESP32-CAM as
             the robot's primary eyes). Includes lens port and FPC ribbon exit."""
@@ -1194,6 +1355,7 @@ def run(context):
             Logger.log(f"  CSI camera (robot eyes) pocket: {tag} in {comp.name}")
             return
 
+        @trace_execution
         def fpc_ribbon_channel(comp, tag, cx, cy, cz, length, axis="z"):
             """ELEC-V13-3 — Flat-flex ribbon cable channel for routing the CSI
             camera signal from head -> neck -> torso (Jetson CSI port)."""
@@ -1201,6 +1363,7 @@ def run(context):
                                  CSI_RIBBON_W + 0.10, CSI_RIBBON_H + 0.06, length))
             BOM.add("Electronics", "15-pin CSI FPC ribbon cable (length per run)", 1, comp.name)
 
+        @trace_execution
         def esp32s3_node_bay(comp, tag, cx, cy, cz, role="lower"):
             """ELEC-V13-4 — ESP32-S3 control-node pocket. Three nodes total:
             'lower' (hips/knees/ankles), 'upper' (waist/shoulders/elbows),
@@ -1226,6 +1389,7 @@ def run(context):
                       roles.get(role, "control node"))
             Logger.log(f"  ESP32-S3 node bay [{role}]: {tag} in {comp.name}")
 
+        @trace_execution
         def tof_sensor_pocket(comp, tag, cx, cy, cz, axis="y"):
             """ELEC-V13-5 — VL53L1X Time-of-Flight obstacle sensor pocket."""
             cut_cavity(comp, box(comp, f"{tag}_ToFBay", cx, cy, cz,
@@ -1235,6 +1399,7 @@ def run(context):
                 cx, cy - (TOF_H/2 + 0.25), cz, TOF_LENS_R, 0.50, axis))
             BOM.add("Electronics", "VL53L1X ToF distance sensor", 1, comp.name)
 
+        @trace_execution
         def ina3221_bay(comp, tag, cx, cy, cz):
             """ELEC-V13-6 — INA3221 3-channel current/voltage monitor pocket
             (servo rail health monitoring, reported back to Jetson)."""
@@ -1242,6 +1407,7 @@ def run(context):
                                  INA_L + 0.15, INA_H + 0.20, INA_W + 0.15))
             BOM.add("Electronics", "INA3221 3-channel current/power monitor", 1, comp.name)
 
+        @trace_execution
         def ubec_5v4a_bay(comp, tag, cx, cy, cz):
             """ELEC-V13-7 — 5V/4A UBEC sized for Jetson Nano's peak draw."""
             cut_cavity(comp, box(comp, f"{tag}_UBECBay", cx, cy, cz,
@@ -1252,6 +1418,7 @@ def run(context):
             BOM.add("Electronics", "5V 4A UBEC (Jetson Nano power)", 1, comp.name)
             _reg_power("Jetson_5V", 5.0, 4.0, ["Jetson Nano", "fan", "CSI camera"])
 
+        @trace_execution
         def vent_grille(comp, tag, cx, cy, cz, axis="y", n_slots=N_VENT_SLOTS):
             """ELEC-V13-8 — Thermal management vent grille (Jetson runs hotter
             than RPi Zero under sustained AI inference load)."""
@@ -1265,6 +1432,7 @@ def run(context):
                         cx, cy + offset, cz, VENT_SLOT_L, VENT_SLOT_W, 0.40))
             BOM.add("Printed", "Thermal vent grille (integrated)", 1, comp.name)
 
+        @trace_execution
         def antenna_clearance(comp, tag, cx, cy, cz, lx, lz):
             """ELEC-V13-9 — Keep-out marker zone (visual only, no geometry cut)
             ensuring no metal fastener or dense-infill wall sits directly over
@@ -1274,6 +1442,7 @@ def run(context):
                 f"NOTE: {tag} marks a WiFi/BT antenna keep-out zone "
                 f"({lx:.1f}x{lz:.1f}cm) -- avoid metal screws/foil within this area")
 
+        @trace_execution
         def uart_bridge_cutout(comp, tag, cx, cy, cz, axis="y"):
             """ELEC-V13-10 — USB-C panel cutout for the CH340 serial bridge
             cable connecting Jetson <-> each ESP32-S3 node externally
@@ -1283,6 +1452,7 @@ def run(context):
             BOM.add("Electronics", "USB-C panel-mount extension (debug port)", 1, comp.name)
 
         # ── Kept from v12: PCA9685 / LiPo / IMU / power bays ──────────────
+        @trace_execution
         def pca9685_bay(comp, tag, cx, cy, cz):
             """ELEC-2 — PCA9685 pocket (62.5x25.4 mm) + standoffs + JST slots."""
             cut_cavity(comp, box(comp, f"{tag}_PCABay", cx, cy, cz,
@@ -1294,6 +1464,7 @@ def run(context):
                 jst_pocket(comp, f"{tag}_PCA_JST{ch}", cx+2.8, cy, cz + (-0.8 + ch*0.10))
             BOM.add("Electronics", "PCA9685 16-ch I2C servo driver", 1, comp.name)
 
+        @trace_execution
         def lipo_bay(comp, tag, cx, cy, cz):
             """ELEC-3 — 2S 1300 mAh LiPo pocket + XT60-F + strap + fuse space."""
             cut_cavity(comp, box(comp, f"{tag}_LipoBay", cx, cy, cz,
@@ -1315,12 +1486,14 @@ def run(context):
             BOM.add("Electronics", "ATO blade fuse holder + 5A fuse", 1, comp.name)
             _reg_power("Servo_7.4V", 7.4, 12.0, ["all PCA9685 servo rails"])
 
+        @trace_execution
         def imu_pocket(comp, tag, cx, cy, cz, axis="z"):
             """ELEC-6 — MPU-6050 IMU pocket (pelvis balance sensor)."""
             cut_cavity(comp, box(comp, f"{tag}_IMUPkt", cx, cy, cz,
                                  IMU_L + 0.20, IMU_W + 0.20, IMU_H + 0.30))
             BOM.add("Electronics", "MPU-6050 IMU breakout", 1, comp.name)
 
+        @trace_execution
         def bec_mount(comp, tag, cx, cy, cz):
             """POW-4 — Generic 5V BEC mount (logic-rail regulator, used for
             ESP32-S3 nodes that don't draw from the Jetson 5V rail)."""
@@ -1331,6 +1504,7 @@ def run(context):
             BOM.add("Electronics", "5V 3A BEC (logic rail, ESP32 nodes)", 1, comp.name)
             _reg_power("Logic_5V", 5.0, 3.0, ["ESP32-S3 nodes", "sensors"])
 
+        @trace_execution
         def power_switch_cutout(comp, tag, cx, cy, cz, axis="y"):
             """POW-3 — Panel-mount master power switch."""
             cyl(comp, f"{tag}_SwHole", cx, cy, cz, POWER_SWITCH_R, 1.0, axis, black_plastic)
@@ -1341,6 +1515,7 @@ def run(context):
         # V14 NEW: SENSOR FUSION, AI ACCELERATOR, COMM BACKBONE, SAFETY
         # ─────────────────────────────────────────────────────────────────
 
+        @trace_execution
         def sensor_array(comp, tag, cx, cy, cz, axis="y", with_ultrasonic=True):
             """SYS-V14-1 — Sensor fusion array: HC-SR04 ultrasonic (optional,
             for pelvis-mounted general obstacle sensing) + 4x FSR force pads
@@ -1364,6 +1539,7 @@ def run(context):
             BOM.add("Electronics", "ADS1115 16-bit ADC (I2C)", 1, comp.name)
             _reg_sensor("FSR_x4+ADC", comp.name, tag, "Balance Node (ESP32-S3 lower)")
 
+        @trace_execution
         def ai_accel_pocket(comp, tag, cx, cy, cz):
             """SYS-V14-2 — Future-ready USB-C AI accelerator bay (Google Coral
             Edge TPU or Intel Neural Compute Stick). Wired to a free Jetson
@@ -1377,6 +1553,7 @@ def run(context):
             ASSEMBLY_STEPS.append(f"{tag}: reserved AI-accelerator bay -- populate when needed, "
                                   f"no redesign required")
 
+        @trace_execution
         def comm_backbone(comp, tag, cx, cy, cz, length, axis="z"):
             """SYS-V14-3 — Visual I2C/UART/SPI communication trunk channel run
             down the spine. This is primarily a build/wiring aid: it gives
@@ -1392,6 +1569,7 @@ def run(context):
             _reg_comm("MainBus", "All nodes", "I2C+UART+SPI trunk", "mixed",
                       "physical bus separation along spine")
 
+        @trace_execution
         def estop_cutout(comp, tag, cx, cy, cz, axis="y"):
             """SYS-V14-4 — Independent, normally-closed emergency-stop button
             wired in series with the 7.4V servo rail ONLY. Pressing it cuts
@@ -1408,6 +1586,7 @@ def run(context):
                 f"Wire {tag} E-stop in series with the servo-rail relay coil ONLY -- "
                 f"verify Jetson and ESP32 nodes stay powered when E-stop is pressed")
 
+        @trace_execution
         def status_rgb_pocket(comp, tag, cx, cy, cz, axis="y"):
             """SYS-V14-5 — Single WS2812 addressable RGB status indicator,
             driven by the Jetson (or Motor Controller node) to show system
@@ -1423,6 +1602,7 @@ def run(context):
         # V13 NEW: ARCHITECTURE / COMMS / POWER LOGGING
         # ─────────────────────────────────────────────────────────────────
 
+        @trace_execution
         def log_v14_architecture():
             """ARCH-V13-1 — Log the full system topology to the build log."""
             Logger.log("=" * 64)
@@ -1443,6 +1623,7 @@ def run(context):
             Logger.log("                         -> 7.4V servo rail (5A ATO fuse)")
             Logger.log("=" * 64)
 
+        @trace_execution
         def log_comms_map():
             """ARCH-V13-2 — Log the communication bus assignments."""
             Logger.log("--- V13 COMMUNICATION MAP ---")
@@ -1452,6 +1633,7 @@ def run(context):
             Logger.log("  Fallback path: ESP32-S3 WiFi AP + WebSocket (if USB-UART fails)")
             Logger.log("  Framing: COBS + CRC-16 over UART; JSON over WebSocket fallback")
 
+        @trace_execution
         def log_power_budget():
             """ARCH-V13-3 — Log estimated power rail budget."""
             Logger.log("--- V13 POWER BUDGET ---")
@@ -1465,6 +1647,7 @@ def run(context):
             Logger.log("  Recommended battery:       3S 5000mAh+ LiPo for >20min runtime")
             Logger.log("  Fuse plan:                 5A on servo rail, 3A on Jetson 5V rail")
 
+        @trace_execution
         def log_ai_pipeline():
             """ARCH-V13-4 — Log the vision/AI processing chain for future
             feature additions (object detection, SLAM, voice, etc.)."""
@@ -1487,6 +1670,7 @@ def run(context):
         # V13 DOCUMENTATION GENERATORS
         # ─────────────────────────────────────────────────────────────────
 
+        @trace_execution
         def write_assembly_guide():
             """DOC-1 — Write ASSEMBLY_GUIDE.txt (v14: Jetson/ESP32-S3 wiring,
             print orientation, support warnings, full build order)."""
@@ -1601,6 +1785,7 @@ def run(context):
             except Exception as e:
                 Logger.log(f"Assembly guide failed: {e}", "WARN")
 
+        @trace_execution
         def write_build_manifest():
             """Write a machine-readable manifest including v14 comm/power maps."""
             try:
@@ -1649,6 +1834,7 @@ def run(context):
             except Exception as e:
                 Logger.log(f"Build manifest failed: {e}", "WARN")
 
+        @trace_execution
         def write_production_readiness_report(check_rows=None):
             """Write the final v14 production-readiness checklist."""
             if not PRODUCTION_REPORT:
@@ -1721,6 +1907,7 @@ def run(context):
         # JOINT BUILDERS
         # ─────────────────────────────────────────────────────────────────
 
+        @trace_execution
         def _make_joint_geometry(cx, cy, cz):
             try:
                 cpi = root.constructionPoints.createInput()
@@ -1738,6 +1925,7 @@ def run(context):
             except Exception:
                 return None
 
+        @trace_execution
         def revolute_joint(name, occ1, occ2, cx, cy, cz, axis_str):
             if not (occ1 and occ2):
                 return
@@ -1754,6 +1942,7 @@ def run(context):
             except Exception:
                 Logger.log(f"Failed revolute joint {name}: {traceback.format_exc()}", "ERROR")
 
+        @trace_execution
         def ball_joint(name, occ1, occ2, cx, cy, cz):
             if not (occ1 and occ2):
                 return
@@ -1768,6 +1957,7 @@ def run(context):
             except Exception:
                 Logger.log(f"Failed ball joint {name}: {traceback.format_exc()}", "ERROR")
 
+        @trace_execution
         def rigid_joint(name, occ1, occ2):
             if not (occ1 and occ2):
                 return
@@ -1778,12 +1968,13 @@ def run(context):
                 j      = root.asBuiltJoints.add(ji)
                 j.name = name
             except Exception:
-                pass
+                Logger.log(f"Failed rigid joint {name}: {traceback.format_exc()}", "ERROR")
 
         # ─────────────────────────────────────────────────────────────────
         # HARDWARE MODULES (servo bodies, couplers, wheels, brackets, stops)
         # ─────────────────────────────────────────────────────────────────
 
+        @trace_execution
         def servo_hardware(comp, tag, cx, cy, cz, axis, mg996):
             if mg996:
                 fd, fw, hr, pd, sd = 2.4, 0.5, 0.7, 0.125, 0.15
@@ -1832,6 +2023,7 @@ def run(context):
                 cut_cavity(comp, c2)
             grommet_hole(comp, tag, cx, cy, cz + (0.5 if axis != "z" else 1.0))
 
+        @trace_execution
         def mg996r(comp, tag, cx, cy, cz, axis="x"):
             cl = CLEARANCE
             if axis == "x":
@@ -1859,6 +2051,7 @@ def run(context):
             horn_coupler(comp, tag, cx, cy, cz, axis, servo_type="std")
             BOM.add("Servo", "MG996R 11 kg-cm servo", 1, comp.name)
 
+        @trace_execution
         def mg90s(comp, tag, cx, cy, cz, axis="x"):
             cl = CLEARANCE
             if axis == "x":
@@ -1886,6 +2079,7 @@ def run(context):
             horn_coupler(comp, tag, cx, cy, cz, axis, servo_type="micro")
             BOM.add("Servo", "MG90S micro servo", 1, comp.name)
 
+        @trace_execution
         def tt_wheel(comp, tag, cx, cy, cz, side=1):
             cl = CLEARANCE
             box(comp, f"{tag}_VisGB",    cx,           cy,     cz,  2.30, 5.20, 1.90, yellow_met)
@@ -1902,6 +2096,7 @@ def run(context):
             BOM.add("Drive", "TT gear-motor 3V-6V", 1, comp.name)
             BOM.add("Drive", "65 mm rubber tyre + wheel", 1, comp.name)
 
+        @trace_execution
         def u_bracket(comp, tag, cx, cy, cz, lx, ly, lz, ap=None):
             ap = ap or chrome
             box(comp, f"{tag}_BB",  cx,          cy,        cz, 0.45,     ly,   lz, ap)
@@ -1909,12 +2104,14 @@ def run(context):
             box(comp, f"{tag}_BR",  cx+lx*0.45,  cy-ly*0.35, cz, lx*0.55, 0.40, lz, ap)
             cyl(comp, f"{tag}_Pin", cx+lx*0.50,  cy,         cz, 0.18, ly*0.85, "y", chrome)
 
+        @trace_execution
         def hard_stop(comp, tag, cx, cy, cz, axis="x", stop_angle_deg=90):
             """MECH-3 — Mechanical hard stop block to prevent joint over-travel."""
             box(comp, f"{tag}_Stop", cx, cy, cz, 0.35, 0.35, 0.35, dark_metal)
             BOM.add("Hardware", "Hard stop block (printed)", 1, comp.name)
             ASSEMBLY_STEPS.append(f"Verify {tag} hard stop at {stop_angle_deg} deg clears moving link")
 
+        @trace_execution
         def transform_lock(comp, tag, cx, cy, cz, axis="z"):
             """MECH-4 — Spring-pin latch for robot/truck mode locking."""
             cyl(comp, f"{tag}_LockBore", cx, cy, cz, 0.18, 1.50, axis, dark_metal)
@@ -2896,18 +3093,27 @@ def run(context):
                 ]
                 found_count = 0
                 for label, tag_fragment in required_tags:
-                    hit = False
+                    hit_body = None
                     for comp in self._comps:
                         for b in comp.bRepBodies:
                             if b.name and tag_fragment.split("_Vis")[0] in b.name:
-                                hit = True
+                                hit_body = b
                                 break
-                        if hit:
+                        if hit_body:
                             break
-                    icon = "[OK]" if hit else "[MISSING]"
-                    if hit:
+                    icon = "[OK]" if hit_body else "[MISSING]"
+                    if hit_body:
                         found_count += 1
-                    Logger.log(f"  {icon} {label}")
+                        try:
+                            bb = hit_body.boundingBox
+                            cx = (bb.minPoint.x + bb.maxPoint.x)/2
+                            cy = (bb.minPoint.y + bb.maxPoint.y)/2
+                            cz = (bb.minPoint.z + bb.maxPoint.z)/2
+                            Logger.log(f"  {icon} {label} -> at [{cx:.2f}, {cy:.2f}, {cz:.2f}]")
+                        except Exception:
+                            Logger.log(f"  {icon} {label} -> (bounds unreadable)")
+                    else:
+                        Logger.log(f"  {icon} {label}")
                 if not COMM_MAP:
                     Logger.log("  [WARN] Communication map is empty!", "WARN")
                 else:
@@ -3404,6 +3610,7 @@ def run(context):
                     Logger.log(f"Screenshot failed: {traceback.format_exc()}", "WARN")
 
             # ── URDF Export ────────────────────────────────────────────────
+            @trace_execution
             def export_urdf(self):
                 def _urdf_type(name):
                     if "Cluster" in name or "Wrist" in name or "CMC" in name:
@@ -3483,6 +3690,7 @@ def run(context):
                     Logger.log(f"URDF export failed: {traceback.format_exc()}", "ERROR")
 
             # ── STL Export ────────────────────────────────────────────────
+            @trace_execution
             def export_stl(self):
                 try:
                     os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -3526,6 +3734,7 @@ def run(context):
                     Logger.log(f"STL export failed: {traceback.format_exc()}", "ERROR")
 
             # ── STEP Export ───────────────────────────────────────────────
+            @trace_execution
             def export_step(self):
                 try:
                     os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -3554,6 +3763,7 @@ def run(context):
                     Logger.log(f"STEP export failed: {traceback.format_exc()}", "ERROR")
 
             # ── BOM Export ─────────────────────────────────────────────────
+            @trace_execution
             def export_bom(self):
                 BOM.add("Fastener", "M3x8 SHCS (general assembly)", 80,  "assembly")
                 BOM.add("Fastener", "M3x16 SHCS (joint brackets)",  24,  "assembly")
