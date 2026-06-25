@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Optimus Prime G1 - Discussion
+    url: https://github.com/itsPremkumar/Optimus_Prime/discussions
+    about: Ask questions, share builds, and discuss the project with the community
+  - name: Fusion 360 MCP Documentation
+    url: https://help.autodesk.com/view/fusion360/ENU/
+    about: Official Autodesk Fusion 360 documentation for MCP server setup
+  - name: Security Policy
+    url: https://github.com/itsPremkumar/Optimus_Prime/blob/main/SECURITY.md
+    about: Report security vulnerabilities responsibly

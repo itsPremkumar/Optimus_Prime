@@ -1,39 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://itsPremkumar.github.io/Optimus_Prime/</loc>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/</loc>
     <lastmod>2026-06-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://itsPremkumar.github.io/Optimus_Prime/docs/installation</loc>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/installation</loc>
+    <lastmod>2026-06-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://itsPremkumar.github.io/Optimus_Prime/docs/configuration</loc>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/configuration</loc>
+    <lastmod>2026-06-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://itsPremkumar.github.io/Optimus_Prime/docs/usage</loc>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/usage</loc>
+    <lastmod>2026-06-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://itsPremkumar.github.io/Optimus_Prime/docs/architecture</loc>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/architecture</loc>
+    <lastmod>2026-06-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://itsPremkumar.github.io/Optimus_Prime/docs/simulation</loc>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/simulation</loc>
+    <lastmod>2026-06-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://itsPremkumar.github.io/Optimus_Prime/docs/troubleshooting</loc>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/troubleshooting</loc>
+    <lastmod>2026-06-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/development</loc>
+    <lastmod>2026-06-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/probes</loc>
+    <lastmod>2026-06-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://itspremkumar.github.io/Optimus_Prime/SEO_GEO_STRATEGY</loc>
+    <lastmod>2026-06-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
   </url>
 </urlset>

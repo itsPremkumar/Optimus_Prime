@@ -11,7 +11,12 @@
     STL export, STEP export, URDF export, servo robot, MG996R, MG90S,
     Model Context Protocol, FDM printing, robot transformation,
     Autodesk Fusion, open source robot, 3D printable robot,
-    AI embodiment, physical AI, robot kinematics
+    AI embodiment, physical AI, robot kinematics, ROS, Gazebo,
+    MoveIt, CAD CAM, 3D modeling, parametric design, CNC machining,
+    injection molding, Arduino, Raspberry Pi, robot arm, animatronics,
+    cosplay, prop making, RC robot, stepper motor, BLDC servo,
+    inverse kinematics, forward kinematics, trajectory planning,
+    collision detection, gait generation, bipedal robot, hexapod
   Author: itsPremkumar
   Repository: https://github.com/itsPremkumar/Optimus_Prime
   GitHub Topics: optimus-prime, transformers, fusion-360, 3d-printing,
@@ -31,6 +36,12 @@
 [![GitHub Repo](https://img.shields.io/badge/GitHub-itsPremkumar%2FOptimus__Prime-181717?logo=github)](https://github.com/itsPremkumar/Optimus_Prime)
 [![GitHub Pages](https://img.shields.io/badge/Website-itsPremkumar.github.io-2ea44f?logo=github-pages)](https://itspremkumar.github.io/Optimus_Prime/)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-blueviolet)](https://www.conventionalcommits.org)
+[![GitHub stars](https://img.shields.io/github/stars/itsPremkumar/Optimus_Prime?style=social)](https://github.com/itsPremkumar/Optimus_Prime/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/itsPremkumar/Optimus_Prime?style=social)](https://github.com/itsPremkumar/Optimus_Prime/network)
+[![GitHub last commit](https://img.shields.io/github/last-commit/itsPremkumar/Optimus_Prime)](https://github.com/itsPremkumar/Optimus_Prime/commits/main)
+[![GitHub issues](https://img.shields.io/github/issues/itsPremkumar/Optimus_Prime)](https://github.com/itsPremkumar/Optimus_Prime/issues)
+[![GitHub release](https://img.shields.io/github/v/release/itsPremkumar/Optimus_Prime?include_prereleases)](https://github.com/itsPremkumar/Optimus_Prime/releases)
+[![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.xxxxxx-blue)](https://zenodo.org)
 
 An open-source **Autodesk Fusion 360 simulation suite** that programmatically builds a fully-articulated, **3D-printable Optimus Prime G1** robot and runs a **9-module kinematic simulation** — all driven remotely via the **Model Context Protocol (MCP)**.
 

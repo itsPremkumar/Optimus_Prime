@@ -1,12 +1,35 @@
-title: Optimus Prime G1 — Fusion 360 Simulation Engine
+title: "Optimus Prime G1 - Fusion 360 Simulation Engine"
 description: >-
   Open-source Python script that builds a 3D-printable Optimus Prime G1 robot
   in Autodesk Fusion 360 with 24 servos, 9 kinematic simulations, and
-  STEP/STL/URDF export. AI-powered robotics simulation.
-url: https://itsPremkumar.github.io/Optimus_Prime
-logo: /images/optimus_robot_Iso.png
+  STEP/STL/URDF export. FDM-printable servo-driven robotics simulation.
+url: "https://itspremkumar.github.io/Optimus_Prime"
+baseurl: "/Optimus_Prime"
+logo: "/images/optimus_robot_Iso.png"
+lang: en_US
+author:
+  name: itsPremkumar
+  url: https://github.com/itsPremkumar
+twitter:
+  username: itsPremkumar
+  card: summary_large_image
+social:
+  name: "Optimus Prime G1 - Fusion 360 Simulation Engine"
+  links:
+    - https://github.com/itsPremkumar/Optimus_Prime
+webmaster_verifications:
+  google:
+  bing:
+  yandex:
+  facebook:
 google_analytics:
 theme: jekyll-theme-cayman
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
+  - jekyll-redirect-from
+defaults:
+  - scope:
+      path: ""
+    values:
+      image: /images/optimus_robot_Iso.png
