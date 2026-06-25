@@ -16,7 +16,7 @@ if 'CAPTURE_SCREENSHOTS' not in globals(): CAPTURE_SCREENSHOTS = True
 if 'VISUAL_AUDIT'      not in globals(): VISUAL_AUDIT      = True
 if 'PRODUCTION_REPORT' not in globals(): PRODUCTION_REPORT = True
 
-import adsk.core, adsk.fusion, traceback, math, os, csv, json, datetime, time, logging, sys
+import adsk.core, adsk.fusion, traceback, math, os, csv, json, datetime, time, logging, sys, inspect, functools
 
 _ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -272,14 +272,41 @@ class DebugManager:
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
+            
+        err_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
         cls.log(f"Uncaught Exception: {exc_value}", "CRITICAL")
-        cls.log("".join(traceback.format_exception(exc_type, exc_value, exc_traceback)), "CRITICAL")
+        cls.log(err_msg, "CRITICAL")
         
-        # Try to pull Fusion 360 API error
+        api_err = "None"
         try:
             app = adsk.core.Application.get()
             if app:
-                cls.log(f"Fusion API Last Error: {app.getLastError()[1]}", "CRITICAL")
+                api_err = app.getLastError()[1]
+                cls.log(f"Fusion API Last Error: {api_err}", "CRITICAL")
+        except: pass
+
+        # Dump local variables of the active frame
+        locals_dump = {}
+        try:
+            tb = exc_traceback
+            while tb.tb_next: tb = tb.tb_next
+            for k, v in tb.tb_frame.f_locals.items():
+                try: locals_dump[k] = repr(v)[:500]
+                except: locals_dump[k] = "<unreprable>"
+        except: pass
+
+        dump_data = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "exception": str(exc_value),
+            "traceback": err_msg,
+            "fusion_api_error": api_err,
+            "locals": locals_dump
+        }
+        
+        try:
+            dump_path = os.path.join(_OUT, "CRASH_DUMP_v14.json")
+            with open(dump_path, "w") as f: json.dump(dump_data, f, indent=2)
+            cls.log(f"Crash dump saved -> {dump_path}", "CRITICAL")
         except: pass
 
     @classmethod
@@ -658,10 +685,54 @@ class BOM:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# END TO END DEBUGGER INJECTION
+# ═════════════════════════════════════════════════════════════════════════════
+def _autotrace_method(func, cls_name):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_t = time.time()
+        try:
+            result = func(*args, **kwargs)
+            duration = time.time() - start_t
+            Profiler.record(f"{cls_name}.{func.__name__}", duration, 0)
+            return result
+        except Exception as e:
+            DebugManager.log(f"CRITICAL ERROR in {cls_name}.{func.__name__}: {e}", "CRITICAL")
+            
+            # Extract locals for the crash
+            locals_dump = {}
+            try:
+                frame = inspect.currentframe()
+                if frame:
+                    for k, v in frame.f_locals.items():
+                        try: locals_dump[k] = repr(v)[:200]
+                        except: locals_dump[k] = "<unreprable>"
+            except: pass
+            
+            DebugManager.log(f"Locals at crash: {json.dumps(locals_dump)}", "CRITICAL")
+            raise
+    return wrapper
+
+def _inject_end_to_end_debugger():
+    DebugManager.log("Injecting End-to-End Debugger across all classes...", "INFO")
+    count = 0
+    for name, obj in list(globals().items()):
+        if inspect.isclass(obj) and obj.__module__ == __name__:
+            if name in ["DebugManager", "Profiler", "StateManager", "Logger", "BugReporter", "CADTracker", "BOM", "ExportIntegrityChecker"]:
+                continue
+            for attr_name, attr_value in list(obj.__dict__.items()):
+                if callable(attr_value) and not attr_name.startswith("__"):
+                    if type(attr_value) is type(_inject_end_to_end_debugger): 
+                        setattr(obj, attr_name, _autotrace_method(attr_value, name))
+                        count += 1
+    DebugManager.log(f"Successfully injected debugger into {count} methods.", "INFO")
+
+# ═════════════════════════════════════════════════════════════════════════════
 # MAIN ENTRY POINT
 # ═════════════════════════════════════════════════════════════════════════════
 
 def run(context):
+    _inject_end_to_end_debugger()
     global TARGET_MODULE, EXPORT_STL, EXPORT_STEP, EXPORT_URDF, EXPORT_DIR
     global CAPTURE_SCREENSHOTS, VISUAL_AUDIT, PRODUCTION_REPORT
 

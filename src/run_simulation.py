@@ -14,11 +14,28 @@ import time
 import subprocess
 import argparse
 import tempfile
+import logging
 
 # ------------------------------------------------------------------ #
 #  Configuration
 # ------------------------------------------------------------------ #
 MCP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:27182/mcp")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ------------------------------------------------------------------ #
+#  Logging Setup
+# ------------------------------------------------------------------ #
+LOG_DIR = os.path.join(BASE_DIR, "..", "output", "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='[%(asctime)s] [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR, "host_controller.log"), encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("HostController")
 
 def find_fusion_launcher():
     """Return the best path to launch Fusion 360 (.lnk preferred for Start-Process)."""
@@ -57,7 +74,6 @@ def find_fusion_launcher():
 
 FUSION_EXE = find_fusion_launcher()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PAYLOAD_FILE = os.path.join(BASE_DIR, "optimus_prime_v14.py")
 
 _rpc_id = 0
@@ -77,21 +93,28 @@ def send_request(payload, timeout=30, quiet=False):
     if session_id:
         headers['MCP-Session-Id'] = session_id
     data = json.dumps(payload).encode('utf-8')
+    logger.debug(f">>> SEND: {payload}")
     req = urllib.request.Request(MCP_URL, data=data, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if 'MCP-Session-Id' in resp.headers:
                 session_id = resp.headers.get('MCP-Session-Id')
             body = resp.read().decode('utf-8')
-            return json.loads(body) if body else {}
+            resp_json = json.loads(body) if body else {}
+            logger.debug(f"<<< RECV: {resp_json}")
+            return resp_json
     except urllib.error.HTTPError as e:
         err_body = e.read().decode('utf-8')
         if not quiet:
-            print(f"HTTP {e.code}: {err_body}")
+            logger.error(f"HTTP {e.code}: {err_body}")
+        else:
+            logger.debug(f"HTTP {e.code}: {err_body}")
         return None
     except Exception as e:
         if not quiet:
-            print(f"Connection error: {e}")
+            logger.error(f"Connection error: {e}")
+        else:
+            logger.debug(f"Connection error (quiet): {e}")
         return None
 
 def call_tool(name, args, timeout=30):
@@ -121,23 +144,23 @@ def is_fusion_running():
 def launch_fusion():
     """Start Fusion 360 via PowerShell Start-Process (handles .lnk reliably)."""
     if not FUSION_EXE:
-        print("Fusion 360 executable not found.")
-        print("Please start Fusion 360 manually or set FUSION_EXE env var.")
+        logger.error("Fusion 360 executable not found.")
+        logger.error("Please start Fusion 360 manually or set FUSION_EXE env var.")
         return False
-    print(f"Starting Fusion 360 from: {FUSION_EXE}")
+    logger.info(f"Starting Fusion 360 from: {FUSION_EXE}")
     ps_cmd = f'Start-Process "{FUSION_EXE}"'
     try:
         subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd],
                        capture_output=True, timeout=15)
     except Exception as e:
-        print(f"Launch error: {e}")
+        logger.error(f"Launch error: {e}")
         return False
     time.sleep(5)
     return True
 
 def wait_for_mcp(timeout=120):
     """Wait until the MCP server responds to an initialize request."""
-    print("Waiting for MCP server...", end="", flush=True)
+    logger.info("Waiting for MCP server...")
     start = time.time()
     dots = 0
     while time.time() - start < timeout:
@@ -149,14 +172,12 @@ def wait_for_mcp(timeout=120):
             }, timeout=5, quiet=True)
             if resp is not None:
                 send_request({"jsonrpc": "2.0", "method": "notifications/initialized"}, quiet=True)
-                print(" ready.")
+                logger.info("MCP server is ready.")
                 return True
         except Exception:
-            dots += 1
-            if dots % 10 == 0:
-                print(".", end="", flush=True)
+            pass
         time.sleep(2)
-    print(" timeout.")
+    logger.error("MCP server wait timeout.")
     return False
 
 # ------------------------------------------------------------------ #
@@ -217,7 +238,7 @@ public class FusionKiller {
         subprocess.run(["powershell", "-NoProfile", "-Command", ps_script],
                        capture_output=True, timeout=10)
     except Exception as e:
-        print(f"Escape error: {e}")
+        logger.error(f"Escape error: {e}")
 
 # ------------------------------------------------------------------ #
 #  Core simulation runner
@@ -283,11 +304,11 @@ if __name__ == "__main__":
         if not launch_fusion():
             sys.exit(1)
         if not wait_for_mcp(timeout=180):
-            print("Fusion MCP server did not start in time.")
+            logger.error("Fusion MCP server did not start in time.")
             sys.exit(1)
     else:
         if not wait_for_mcp(timeout=10):
-            print("MCP server not reachable – is Fusion running?")
+            logger.error("MCP server not reachable – is Fusion running?")
             sys.exit(1)
 
     # 2. Send Esc to dismiss any startup dialogs
@@ -297,7 +318,7 @@ if __name__ == "__main__":
 
     # 3. Close all existing documents (embedded in payload to avoid session issues)
     output_dir = args.output_dir or os.path.join(os.path.dirname(BASE_DIR), "output")
-    print(f"Loading payload for module '{args.module}'...")
+    logger.info(f"Loading payload for module '{args.module}'...")
     with open(PAYLOAD_FILE, "r", encoding="utf-8") as f:
         payload = f.read()
     script = ""
@@ -316,13 +337,13 @@ if __name__ == "__main__":
     script += payload
 
     # 4. Run the simulation
-    print("Sending Optimus Prime G1 engine to Fusion...")
+    logger.info("Sending Optimus Prime G1 engine to Fusion...")
     res = run_simulation(script)
 
     if res:
         log = _get_log_text(res)
         if "Cannot perform" in log or "dialog" in log:
-            print("Dialog blocking – trying Escape and retry...")
+            logger.warning("Dialog blocking – trying Escape and retry...")
             for _ in range(5):
                 send_escape()
                 time.sleep(0.3)
@@ -343,8 +364,8 @@ if __name__ == "__main__":
             script_retry += payload_retry
             res = run_simulation(script_retry)
             log = _get_log_text(res) if res else ""
-        print(f"\nSimulation Complete!\n{log}")
+        logger.info(f"\nSimulation Complete!\n{log}")
     else:
-        print("No response from MCP – simulation may have failed.")
+        logger.error("No response from MCP – simulation may have failed.")
 
-    print("Done.")
+    logger.info("Done.")
