@@ -319,6 +319,12 @@ ch_comp, ch_occ = new_comp("Ball_Chambered")
 sphere(ch_comp,"Ball", 0,0,0, BR, chrome)
 set_translation(ch_occ, 0, 0, mgz)
 
+# Capture position to bake these translations into the timeline
+try:
+    design.snapshots.add()
+except Exception as e:
+    print(f"Snapshot failed: {e}")
+
 # ── Ejection port (cosmetic) ─────────────────────────────────────────────
 ebox(hc,"Eject_Port", 0.25,0, HZ/2+0.3, 0.30,0.08,0.25, dark_grey)
 
