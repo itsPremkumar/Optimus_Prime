@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Ball Launcher DC – ULTIMATE FINAL VERSION (MCP)
 ================================================
@@ -63,13 +63,12 @@ except: pass
 design = adsk.fusion.Design.cast(_app.activeProduct)
 root = design.rootComponent
 
-# ── Output directory (configurable) ────────────────────────────────────────
-home_dir = _os.path.expanduser("~")
-artifact_dir = _os.environ.get("FUSION_ARTIFACT_DIR", _os.path.join(home_dir, "ball_launcher_output"))
+# ── Output directory (hardcoded to brain workspace) ────────────────────────────────────────
+artifact_dir = r"C:\Users\PREM KUMAR\.gemini\antigravity\brain\41ed2feb-a7f0-40de-807d-773ea665695e"
 try:
     _os.makedirs(artifact_dir, exist_ok=True)
 except:
-    artifact_dir = home_dir
+    pass
 
 # ── Appearances ──────────────────────────────────────────────────────────
 def get_ap(*names):
@@ -303,8 +302,8 @@ ebox(hc, "Cavity", -HX / 2 + WALL_T, -HY / 2 + WALL_T, WALL_T,
 ebox(hc, "Rear_Cap", -HX / 2 + 0.2, -HY / 2 + 0.2, 0, HX - 0.4, HY - 0.4, 0.30, dark_grey)
 
 # Spring pocket (for real compression spring) – cylindrical cavity in rear cap
-# Pocket for spring OD ~8mm, depth 15mm
-ecyl(hc, "Spring_Pocket", 0, 0, 0.30, 0.42, 1.5, 'z', cut=True)
+# Pocket for spring OD ~8mm, depth 2mm inside the solid 3mm cap
+ecyl(hc, "Spring_Pocket", 0, 0, 0.30, 0.42, -0.20, 'z', cut=True)
 
 # Top rail
 ebox(hc, "Top_Rail", -1.3, HY / 2 + 0.02, 0.5, HX - 0.6, 0.12, 1.5, chrome)
@@ -504,33 +503,18 @@ mag_balls = []
 for i in range(5):
     bcomp, bocc = new_comp(f"Ball_Mag_{i + 1}")
     sphere(bcomp, f"Ball_{i + 1}", 0, 0, 0, BR, chrome)
-    ball_y = mgy + 0.3 + i * ball_spacing
-    set_translation(bocc, mgx, ball_y, mgz)
     mag_balls.append(bocc)
 
 # Chambered ball
 ch_comp, ch_occ = new_comp("Ball_Chambered")
 sphere(ch_comp, "Ball", 0, 0, 0, BR, chrome)
-set_translation(ch_occ, 0, 0, chamber_z)
 
 # ── Muzzle flash ─────────────────────────────────────────────────────────
 flc_, flo = new_comp("Muzzle_Flash")
 ecyl(flc_, "Flash", 0, 0, bz_start + BL + 0.15, 0.25, 0.60, 'z', amber_led)
 flo.isLightBulbOn = False
 
-# Save initial states AFTER build
-for occ in root.occurrences:
-    initial_transforms[occ.name] = occ.transform.copy()
-    initial_visibilities[occ.name] = occ.isLightBulbOn
-
 print("BUILD_DONE")
-
-# ── Design snapshot ────────────────────────────────────────────────────────
-try:
-    design.snapshots.add()
-    print("SNAPSHOT_CREATED")
-except Exception as e:
-    print(f"Snapshot note: {e}")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # JOINTS
@@ -540,6 +524,22 @@ slider_joint("Plunger_Slide", po, ho, 0, 0, pz, "z")
 
 adsk.doEvents()
 print("JOINTS_DONE")
+
+# Translate balls to initial positions and snapshot AFTER joints are built
+for i, bocc in enumerate(mag_balls):
+    ball_y = mgy + 0.3 + i * ball_spacing
+    set_translation(bocc, mgx, ball_y, mgz)
+set_translation(ch_occ, 0, 0, chamber_z)
+try:
+    design.snapshots.add()
+    print("SNAPSHOT_CREATED")
+except Exception as e:
+    print(f"Snapshot note: {e}")
+
+# Save initial states AFTER positioning
+for occ in root.occurrences:
+    initial_transforms[occ.name] = occ.transform.copy()
+    initial_visibilities[occ.name] = occ.isLightBulbOn
 
 # Debug: print initial ball positions
 for occ in root.occurrences:
@@ -771,7 +771,7 @@ print("PRINT_CHECK_DONE")
 # ═══════════════════════════════════════════════════════════════════════════
 print("EXPORT_START")
 
-step_path = _os.path.join(artifact_dir, "ball_launcher_ultimate.step")
+step_path = r"C:\one\Optimus_Prime\output\ball_launcher.step"
 
 try:
     exportMgr = design.exportManager
