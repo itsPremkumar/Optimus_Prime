@@ -310,20 +310,11 @@ mag_balls = []          # list of occurrences, bottom first
 for i in range(5):
     bcomp,bocc = new_comp(f"Ball_Mag_{i+1}")
     sphere(bcomp,f"Ball_{i+1}", 0,0,0, BR, chrome)
-    # Position in magazine: stack upwards from the funnel
-    set_translation(bocc, mgx, mgy + 0.5 + i*0.9, mgz)
     mag_balls.append(bocc)
 
 # Chambered ball (separate occurrence)
 ch_comp, ch_occ = new_comp("Ball_Chambered")
 sphere(ch_comp,"Ball", 0,0,0, BR, chrome)
-set_translation(ch_occ, 0, 0, mgz)
-
-# Capture position to bake these translations into the timeline
-try:
-    design.snapshots.add()
-except Exception as e:
-    print(f"Snapshot failed: {e}")
 
 # ── Ejection port (cosmetic) ─────────────────────────────────────────────
 ebox(hc,"Eject_Port", 0.25,0, HZ/2+0.3, 0.30,0.08,0.25, dark_grey)
@@ -344,6 +335,15 @@ slider_joint("Plunger_Slide", po, ho, 0, 0, pz, "z")
 adsk.doEvents()
 print("JOINTS_DONE")
 
+# Translate balls to initial positions and snapshot AFTER joints are built
+for i, bocc in enumerate(mag_balls):
+    set_translation(bocc, mgx, mgy + 0.5 + i*0.9, mgz)
+set_translation(ch_occ, 0, 0, mgz)
+try:
+    design.snapshots.add()
+except Exception as e:
+    print(f"Snapshot failed: {e}")
+
 # ══════════════════════════════════════════════════════════════════════════
 # SIMULATION PARAMETERS
 # ══════════════════════════════════════════════════════════════════════════
@@ -351,6 +351,9 @@ print("JOINTS_DONE")
 initial_transforms = {}
 for occ in root.occurrences:
     initial_transforms[occ.name] = (occ.transform.copy(), occ.isLightBulbOn)
+    if "Ball" in occ.name:
+        t = occ.transform.translation
+        print(f"DEBUG_INITIAL: {occ.name} -> x: {t.x:.2f}, y: {t.y:.2f}, z: {t.z:.2f}")
 
 cj = root.asBuiltJoints.itemByName("Cam_Drive")
 sj = root.asBuiltJoints.itemByName("Plunger_Slide")
@@ -502,13 +505,13 @@ def capture_img(filename, view_orientation, hide_housing=False, hide_mag=False):
 capture_img("assembly_iso.png", adsk.core.ViewOrientations.IsoTopRightViewOrientation)
 
 # 2. Internal View (Hide Housing, show plunger, spring, cam, motor)
-capture_img("internal_iso.png", adsk.core.ViewOrientations.IsoTopRightViewOrientation, hide_housing=True)
+capture_img("internal_iso.png", adsk.core.ViewOrientations.IsoTopRightViewOrientation, hide_housing=True, hide_mag=True)
 
 # 3. Side View (Verify joints and vertical alignment)
-capture_img("internal_side.png", adsk.core.ViewOrientations.RightViewOrientation, hide_housing=True)
+capture_img("internal_side.png", adsk.core.ViewOrientations.RightViewOrientation, hide_housing=True, hide_mag=True)
 
 # 4. Top View (Verify magazine alignment)
-capture_img("internal_top.png", adsk.core.ViewOrientations.TopViewOrientation, hide_housing=True)
+capture_img("internal_top.png", adsk.core.ViewOrientations.TopViewOrientation, hide_housing=True, hide_mag=True)
 
 # Restore visibilities
 if ho: ho.isLightBulbOn = True
