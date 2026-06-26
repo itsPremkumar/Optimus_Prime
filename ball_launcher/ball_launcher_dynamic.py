@@ -125,20 +125,19 @@ def ebox(comp, name, x0,y0,z0, dx,dy,dz, ap=None, cut=False):
     try:
         plane = _off_plane(comp,'z',z0)
         sk = comp.sketches.add(plane)
-        p1=adsk.core.Point3D.create(x0,y0,0); p2=adsk.core.Point3D.create(x0+dx,y0+dy,0)
+        p1 = sk.modelToSketchSpace(adsk.core.Point3D.create(x0,y0,z0))
+        p2 = sk.modelToSketchSpace(adsk.core.Point3D.create(x0+dx,y0+dy,z0))
         sk.sketchCurves.sketchLines.addTwoPointRectangle(p1,p2)
         prof=sk.profiles.item(0)
         op=adsk.fusion.FeatureOperations.CutFeatureOperation if cut else adsk.fusion.FeatureOperations.NewBodyFeatureOperation
         ex=comp.features.extrudeFeatures.createInput(prof,op)
         if cut:
-            # symmetric cut to keep it simple
-            ex.setTwoSidesExtent(adsk.core.ValueInput.createByReal(dz/2),
-                                 adsk.core.ValueInput.createByReal(dz/2))
+            ex.setSymmetricExtent(adsk.core.ValueInput.createByReal(dz/2), True)
         else:
             ex.setDistanceExtent(False,adsk.core.ValueInput.createByReal(dz))
         body=comp.features.extrudeFeatures.add(ex)
         if body and not cut: body.name=name; set_ap(body,ap)
-        try: sk.isVisible=False
+        try: sk.isLightBulbOn=False
         except: pass
         return body
     except Exception as ex: print(f"  ebox '{name}' fail: {ex}"); return None
@@ -146,27 +145,28 @@ def ebox(comp, name, x0,y0,z0, dx,dy,dz, ap=None, cut=False):
 def ecyl(comp, name, cx, cy, cz, r, h, axis='z', ap=None, cut=False):
     if r<=0 or h<=0: return None
     try:
-        plane=_off_plane(comp, axis, cz)   # for axis='y', offset is cz
-        sk=comp.sketches.add(plane)
-        # In the sketch, the 2D point corresponds to world coordinates depending on axis
-        # For axis='y', the sketch's X axis = world X, Y axis = world Z
-        # So point (cx, cy) -> world (cx, cy). We need to pass the world Z as the sketch Y
-        if axis == 'y':
-            pt = adsk.core.Point3D.create(cx, cy, 0)   # cy is world Z
+        if axis == 'z':
+            plane=_off_plane(comp, 'z', cz)
+        elif axis == 'y':
+            plane=_off_plane(comp, 'y', cy)
+        elif axis == 'x':
+            plane=_off_plane(comp, 'x', cx)
         else:
-            pt = adsk.core.Point3D.create(cx, cy, 0)
+            return None
+        sk=comp.sketches.add(plane)
+        world_pt = adsk.core.Point3D.create(cx, cy, cz)
+        pt = sk.modelToSketchSpace(world_pt)
         sk.sketchCurves.sketchCircles.addByCenterRadius(pt, r)
         prof=sk.profiles.item(0)
         op=adsk.fusion.FeatureOperations.CutFeatureOperation if cut else adsk.fusion.FeatureOperations.NewBodyFeatureOperation
         ex=comp.features.extrudeFeatures.createInput(prof,op)
         if cut:
-            ex.setTwoSidesExtent(adsk.core.ValueInput.createByReal(h/2),
-                                 adsk.core.ValueInput.createByReal(h/2))
+            ex.setSymmetricExtent(adsk.core.ValueInput.createByReal(h/2), True)
         else:
             ex.setDistanceExtent(False,adsk.core.ValueInput.createByReal(h))
         body=comp.features.extrudeFeatures.add(ex)
         if body and not cut: body.name=name; set_ap(body,ap)
-        try: sk.isVisible=False
+        try: sk.isLightBulbOn=False
         except: pass
         return body
     except Exception as ex: print(f"  ecyl '{name}' fail: {ex}"); return None
@@ -194,7 +194,7 @@ def revolute_joint(name, occ1,occ2, cx,cy,cz, axis):
             "z":adsk.core.Vector3D.create(0,0,1)}[axis]
         ji.setAsRevoluteJointMotion(adsk.fusion.JointDirections.CustomJointDirection,av)
         j=root.asBuiltJoints.add(ji); j.name=name
-        try: sk.isVisible=False
+        try: sk.isLightBulbOn=False
         except: pass
     except Exception as ex: print(f"  revolute '{name}' fail: {ex}")
 
@@ -206,17 +206,14 @@ def slider_joint(name, occ1,occ2, cx,cy,cz, axis):
         geom=adsk.fusion.JointGeometry.createByPoint(pt)
         ji=root.asBuiltJoints.createInput(occ1,occ2,geom)
         if axis=='z':
-            slide_dir=adsk.core.Vector3D.create(0,0,1)
-            up_dir=adsk.core.Vector3D.create(0,1,0)
+            jd = adsk.fusion.JointDirections.ZAxisJointDirection
         elif axis=='y':
-            slide_dir=adsk.core.Vector3D.create(0,1,0)
-            up_dir=adsk.core.Vector3D.create(1,0,0)
-        else:   # x
-            slide_dir=adsk.core.Vector3D.create(1,0,0)
-            up_dir=adsk.core.Vector3D.create(0,1,0)
-        ji.setAsSliderJointMotion(slide_dir, up_dir)
+            jd = adsk.fusion.JointDirections.YAxisJointDirection
+        else:
+            jd = adsk.fusion.JointDirections.XAxisJointDirection
+        ji.setAsSliderJointMotion(jd)
         j=root.asBuiltJoints.add(ji); j.name=name
-        try: sk.isVisible=False
+        try: sk.isLightBulbOn=False
         except: pass
     except Exception as ex: print(f"  slider '{name}' fail: {ex}")
 
@@ -237,21 +234,21 @@ ebox(hc,"Rear_Cap", -HX/2+0.2,-HY/2+0.2,0, HX-0.4,HY-0.4,0.30, dark_grey)
 ebox(hc,"Top_Rail", -1.3, HY/2+0.02, -0.5, HX-0.6,0.12,2.0, chrome)
 ebox(hc,"Mount_Hinge", -0.55,-0.325, HZ-0.3, 1.1,0.65,0.8, dark_metal)
 # Hinge pin hole (axis Y through housing)
-ecyl(hc,"Hinge_Pin", 0, HZ-0.15, 0, 0.10,0.80,'y', cut=True)
-ecyl(hc,"Screw_L", -0.35, HZ-0.15, 0, 0.16,0.60,'y', cut=True)
-ecyl(hc,"Screw_R", 0.35, HZ-0.15, 0, 0.16,0.60,'y', cut=True)
+ecyl(hc,"Hinge_Pin", 0, 0, HZ-0.15, 0.10,0.80,'y', cut=True)
+ecyl(hc,"Screw_L", -0.35, 0, HZ-0.15, 0.16,0.60,'y', cut=True)
+ecyl(hc,"Screw_R", 0.35, 0, HZ-0.15, 0.16,0.60,'y', cut=True)
 # Cooling vents
 for i in range(3):
-    vz=-0.6+i*0.7
+    vz=0.5+i*0.7
     ebox(hc,f"Vent_L{i}", -HX/2-0.01,0,vz, 0.02,0.10,0.50, cut=True)
-    ebox(hc,f"Vent_R{i}", HX/2+0.01,0,vz, 0.02,0.10,0.50, cut=True)
+    ebox(hc,f"Vent_R{i}", HX/2-0.01,0,vz, 0.02,0.10,0.50, cut=True)
 
 # ── Barrel ───────────────────────────────────────────────────────────────
 bc_, bo = new_comp("Barrel")
 ecyl(bc_,"Outer", 0,0,bz_start, BRO,BL, 'z', chrome)
 ecyl(bc_,"Bore", 0,0,bz_start, BRI,BL+0.4, 'z', cut=True)
 ecyl(bc_,"Muzzle_Ring", 0,0,bz_start+BL, BRO+0.08,0.20, 'z', dark_metal)
-ecyl(bc_,"LED_Pocket", 0,0,bz_start+BL+0.5, 0.26,0.40, 'z', cut=True)
+ecyl(bc_,"LED_Pocket", 0,0,bz_start+BL, 0.26,0.40, 'z', cut=True)
 ebox(bc_,"Front_Sight", -0.1, BRO+0.05, bz_start+BL-0.5, 0.20,0.30,0.12, dark_metal)
 
 # ── Plunger ──────────────────────────────────────────────────────────────
@@ -289,9 +286,9 @@ ecyl(mtc_,"Shaft", cam_cx,my, cam_cz+N20_BW/2+N20_GW/2, N_SHAFT_R,N_SHAFT_L, 'y'
 # Motor bracket attached to housing
 ebox(hc,"Motor_Bracket", cam_cx-0.9, -HY/2-0.15, cam_cz-1.0, 1.8,0.15,2.0, dark_metal)
 # Shaft hole through housing wall
-ecyl(hc,"Shaft_Hole", cam_cx, cam_cz, -HY/2, 0.12, HY+0.2, 'y', cut=True)
+ecyl(hc,"Shaft_Hole", cam_cx, -HY/2, cam_cz, 0.12, HY+0.2, 'y', cut=True)
 # Wire channel
-ecyl(hc,"Wire_Chan", cam_cx-0.5, cam_cz-0.6, -HY/2, 0.10,0.40, 'y', cut=True)
+ecyl(hc,"Wire_Chan", cam_cx-0.5, -HY/2, cam_cz-0.6, 0.10,0.40, 'y', cut=True)
 # Motor wires (cosmetic)
 ecyl(mtc_,"Wire_Red", cam_cx-0.3, my-N20_BH/2, cam_cz-N20_BW/2-0.2, 0.04,1.8, 'y', red_col)
 ecyl(mtc_,"Wire_Blk", cam_cx+0.3, my-N20_BH/2, cam_cz-N20_BW/2-0.2, 0.04,1.8, 'y', black_plas)
@@ -327,7 +324,7 @@ ebox(hc,"Eject_Port", 0.25,0, HZ/2+0.3, 0.30,0.08,0.25, dark_grey)
 # ── Muzzle flash (hidden) ────────────────────────────────────────────────
 flc_, flo = new_comp("Muzzle_Flash")
 ecyl(flc_,"Flash", 0,0, bz_start+BL+0.15, 0.25,0.60, 'z', amber_led)
-flo.isVisible = False
+flo.isLightBulbOn = False
 
 # ── Ammo counter label (just print to console, we'll also use a message)
 print("BUILD_DONE")
@@ -385,9 +382,9 @@ else:
 
             # Muzzle flash
             if lift < 0.05:
-                flo.isVisible = True
+                flo.isLightBulbOn = True
             else:
-                flo.isVisible = False
+                flo.isLightBulbOn = False
 
             # Move chambered ball forward with plunger
             if lift < 0.4:
@@ -405,7 +402,7 @@ else:
 
         # End of shot: ball is gone (we will hide it or move it out of scene)
         ch_occ.transform.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 15.0)  # far away
-        flo.isVisible = False
+        flo.isLightBulbOn = False
 
         # Reduce ammo count
         ammo_remaining -= 1
@@ -416,7 +413,7 @@ else:
             # Remove the bottom ball (make it invisible and move away)
             bottom_ball = mag_balls[0]
             bottom_ball.transform.translation = adsk.core.Vector3D.create(100,100,100)  # hide
-            bottom_ball.isLightBulb = True   # just to keep reference
+            bottom_ball.isLightBulbOn = False   # hide it
             mag_balls.pop(0)
 
             # Shift remaining balls down to fill the gap
@@ -502,6 +499,9 @@ print(f"RESULT:{json.dumps({
     'features':'full firing cycle, ammo counter, spring compress, ball feed, assembly/disassembly',
     'export_path': step_path
 })}")
+
+def run(context):
+    pass
 """
 
 def main():
