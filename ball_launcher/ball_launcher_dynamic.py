@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """
-Ball Launcher DC — Complete Dynamic Simulation (MCP)
-=====================================================
-Advanced ball launcher for Fusion 360 with:
-  - Full 3D-printable model (all bores, holes, clearances)
-  - Revolute cam joint + slider plunger joint
-  - Cam-profile-driven firing cycle
-  - Gravity magazine feed (balls drop into chamber)
-  - Spring compression animation
-  - Ammo counter window + sights + ejection port
-  - Muzzle flash at firing moment
+Ball Launcher DC – Advanced Dynamic Simulation (MCP)
+====================================================
+Fully animated launcher with:
+  - Real‑time firing cycle (cam‑driven plunger + spring)
+  - Gravity ball feed (magazine balls shift down each shot)
+  - Muzzle flash
+  - Spring compression visual
+  - Ammo counter (console)
   - Assembly/disassembly animation
+  - All 3D‑printable features (bores, clearances, ports)
 
-Usage:
-    python ball_launcher_dynamic.py
-Requires Fusion 360 running with MCP enabled (port 27182).
+Run:  python ball_launcher_advanced.py
+Fusion 360 must be running with MCP on port 27182.
 """
 
 import urllib.request, json, os, sys, time as _time
@@ -55,6 +53,11 @@ _app = adsk.core.Application.get()
 _ui  = _app.userInterface
 
 _new_doc = _app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
+try:
+    _app.preferences.generalPreferences.defaultModelingOrientation = \
+        adsk.core.DefaultModelingOrientations.ZUpModelingOrientation
+except: pass
+
 design = adsk.fusion.Design.cast(_app.activeProduct)
 root = design.rootComponent
 
@@ -77,20 +80,22 @@ chrome      = get_ap("Chrome","Steel - Polished")
 dark_metal  = get_ap("Steel - Flat","Plastic - Matte (Black)")
 dark_grey   = get_ap("Plastic - Matte (Dark Grey)","Plastic - Matte (Grey)")
 glass_clr   = get_ap("Glass - Window","Acrylic - Clear")
-black_plas  = get_ap("Plastic - Matte (Black","Rubber")
+black_plas  = get_ap("Plastic - Matte (Black)","Rubber")
 red_col     = get_ap("Paint - Metallic (Red)","Steel - Painted (Red)")
+amber_led   = get_ap("LED - Amber")
 
 # ── Config ───────────────────────────────────────────────────────────────
-HX, HY, HZ       = 3.2, 2.8, 5.0
-BL, BRO, BRI     = 4.5, 0.70, 0.46    # barrel len, outer r, inner r
-CH, CRH, ECC     = 0.40, 0.85, 0.35   # cam height, high r, eccentricity
-PR, PL           = 0.36, 0.50         # plunger head r, len
-BR               = 0.40               # ball radius 8mm
-MAG_RI, MAG_RO   = 0.48, 0.66
-MAG_H            = 4.5
+HX, HY, HZ       = 3.2, 2.8, 5.0           # housing dimensions
+BL, BRO, BRI     = 4.5, 0.70, 0.46         # barrel length, outer r, inner r
+CH, CRH, ECC     = 0.40, 0.85, 0.35        # cam height, high radius, eccentricity
+PR, PL           = 0.36, 0.50              # plunger head radius, length
+BR               = 0.40                    # ball radius (8mm)
+MAG_RI, MAG_RO   = 0.48, 0.66              # magazine inner & outer radius
+MAG_H            = 4.5                     # magazine height
 WALL_T           = 0.18
-N20_BL, N20_BW, N20_BH = 2.4, 1.2, 1.4
-N20_GL, N20_GW, N20_GH = 1.2, 1.2, 1.0
+N20_BL, N20_BW, N20_BH = 2.4, 1.2, 1.4    # motor body
+N20_GL, N20_GW, N20_GH = 1.2, 1.2, 1.0    # gearbox
+N_SHAFT_R, N_SHAFT_L   = 0.06, 0.6
 
 comps_list = []
 occs = {}
@@ -114,7 +119,7 @@ def _off_plane(comp, axis, offset):
     pi.setByOffset(base, adsk.core.ValueInput.createByReal(offset))
     return comp.constructionPlanes.add(pi)
 
-# ── Extrude helpers ──────────────────────────────────────────────────────
+# ── Geometry helpers (axis‑aware, safe) ──────────────────────────────────
 def ebox(comp, name, x0,y0,z0, dx,dy,dz, ap=None, cut=False):
     if dx<=0 or dy<=0 or dz<=0: return None
     try:
@@ -125,7 +130,12 @@ def ebox(comp, name, x0,y0,z0, dx,dy,dz, ap=None, cut=False):
         prof=sk.profiles.item(0)
         op=adsk.fusion.FeatureOperations.CutFeatureOperation if cut else adsk.fusion.FeatureOperations.NewBodyFeatureOperation
         ex=comp.features.extrudeFeatures.createInput(prof,op)
-        ex.setDistanceExtent(False,adsk.core.ValueInput.createByReal(dz))
+        if cut:
+            # symmetric cut to keep it simple
+            ex.setTwoSidesExtent(adsk.core.ValueInput.createByReal(dz/2),
+                                 adsk.core.ValueInput.createByReal(dz/2))
+        else:
+            ex.setDistanceExtent(False,adsk.core.ValueInput.createByReal(dz))
         body=comp.features.extrudeFeatures.add(ex)
         if body and not cut: body.name=name; set_ap(body,ap)
         try: sk.isVisible=False
@@ -133,16 +143,27 @@ def ebox(comp, name, x0,y0,z0, dx,dy,dz, ap=None, cut=False):
         return body
     except Exception as ex: print(f"  ebox '{name}' fail: {ex}"); return None
 
-def ecyl(comp,name, cx,cy,cz, r,h, axis='z', ap=None, cut=False):
+def ecyl(comp, name, cx, cy, cz, r, h, axis='z', ap=None, cut=False):
     if r<=0 or h<=0: return None
     try:
-        plane=_off_plane(comp,axis,cz)
+        plane=_off_plane(comp, axis, cz)   # for axis='y', offset is cz
         sk=comp.sketches.add(plane)
-        sk.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(cx,cy,0),r)
+        # In the sketch, the 2D point corresponds to world coordinates depending on axis
+        # For axis='y', the sketch's X axis = world X, Y axis = world Z
+        # So point (cx, cy) -> world (cx, cy). We need to pass the world Z as the sketch Y
+        if axis == 'y':
+            pt = adsk.core.Point3D.create(cx, cy, 0)   # cy is world Z
+        else:
+            pt = adsk.core.Point3D.create(cx, cy, 0)
+        sk.sketchCurves.sketchCircles.addByCenterRadius(pt, r)
         prof=sk.profiles.item(0)
         op=adsk.fusion.FeatureOperations.CutFeatureOperation if cut else adsk.fusion.FeatureOperations.NewBodyFeatureOperation
         ex=comp.features.extrudeFeatures.createInput(prof,op)
-        ex.setDistanceExtent(False,adsk.core.ValueInput.createByReal(h))
+        if cut:
+            ex.setTwoSidesExtent(adsk.core.ValueInput.createByReal(h/2),
+                                 adsk.core.ValueInput.createByReal(h/2))
+        else:
+            ex.setDistanceExtent(False,adsk.core.ValueInput.createByReal(h))
         body=comp.features.extrudeFeatures.add(ex)
         if body and not cut: body.name=name; set_ap(body,ap)
         try: sk.isVisible=False
@@ -150,7 +171,7 @@ def ecyl(comp,name, cx,cy,cz, r,h, axis='z', ap=None, cut=False):
         return body
     except Exception as ex: print(f"  ecyl '{name}' fail: {ex}"); return None
 
-def sphere(comp,name, cx,cy,cz, r, ap=None):
+def sphere(comp, name, cx, cy, cz, r, ap=None):
     try:
         temp=adsk.fusion.TemporaryBRepManager.get()
         shape=temp.createSphere(adsk.core.Point3D.create(cx,cy,cz),r)
@@ -175,7 +196,7 @@ def revolute_joint(name, occ1,occ2, cx,cy,cz, axis):
         j=root.asBuiltJoints.add(ji); j.name=name
         try: sk.isVisible=False
         except: pass
-    except: pass
+    except Exception as ex: print(f"  revolute '{name}' fail: {ex}")
 
 def slider_joint(name, occ1,occ2, cx,cy,cz, axis):
     if not(occ1 and occ2): return
@@ -184,10 +205,16 @@ def slider_joint(name, occ1,occ2, cx,cy,cz, axis):
         pt=sk.sketchPoints.add(adsk.core.Point3D.create(cx,cy,cz))
         geom=adsk.fusion.JointGeometry.createByPoint(pt)
         ji=root.asBuiltJoints.createInput(occ1,occ2,geom)
-        av=adsk.core.Vector3D.create(0,0,1) if axis=='z' else adsk.core.Vector3D.create(1,0,0)
-        nv=adsk.core.Vector3D.create(0,1,0)
-        if axis=='y': av=adsk.core.Vector3D.create(0,1,0); nv=adsk.core.Vector3D.create(1,0,0)
-        ji.setAsSliderJointMotion(av,nv)
+        if axis=='z':
+            slide_dir=adsk.core.Vector3D.create(0,0,1)
+            up_dir=adsk.core.Vector3D.create(0,1,0)
+        elif axis=='y':
+            slide_dir=adsk.core.Vector3D.create(0,1,0)
+            up_dir=adsk.core.Vector3D.create(1,0,0)
+        else:   # x
+            slide_dir=adsk.core.Vector3D.create(1,0,0)
+            up_dir=adsk.core.Vector3D.create(0,1,0)
+        ji.setAsSliderJointMotion(slide_dir, up_dir)
         j=root.asBuiltJoints.add(ji); j.name=name
         try: sk.isVisible=False
         except: pass
@@ -197,24 +224,20 @@ def slider_joint(name, occ1,occ2, cx,cy,cz, axis):
 # BUILD
 # ══════════════════════════════════════════════════════════════════════════
 print("BUILD_START")
-bz_start = HZ - 0.3  # barrel Z start
+bz_start = HZ - 0.3          # barrel starts here
+pz = 0.6                     # plunger initial Z inside housing
+cam_cx = HX/2 - 0.1          # cam X position
+cam_cz = pz + 0.35           # cam height (Z)
 
 # ── Housing ──────────────────────────────────────────────────────────────
 hc, ho = new_comp("Housing")
-# Outer body (centered at z=0, Z-positive)
 ebox(hc,"Body", -HX/2,-HY/2,0, HX,HY,HZ, dark_metal)
-# Interior cavity
-ebox(hc,"Cavity", -HX/2+WALL_T,-HY/2+WALL_T, WALL_T, HX-2*WALL_T,HY-2*WALL_T,HZ-2*WALL_T, cut=True)
-# Rear cap
+ebox(hc,"Cavity", -HX/2+WALL_T,-HY/2+WALL_T,WALL_T, HX-2*WALL_T,HY-2*WALL_T,HZ-2*WALL_T, cut=True)
 ebox(hc,"Rear_Cap", -HX/2+0.2,-HY/2+0.2,0, HX-0.4,HY-0.4,0.30, dark_grey)
-# Top rail
 ebox(hc,"Top_Rail", -1.3, HY/2+0.02, -0.5, HX-0.6,0.12,2.0, chrome)
-# Mounting hinge
 ebox(hc,"Mount_Hinge", -0.55,-0.325, HZ-0.3, 1.1,0.65,0.8, dark_metal)
-# Hinge pin hole
-# For axis='y' cuts: (cx,cy,cz) -> world (cx, cz, cy)
+# Hinge pin hole (axis Y through housing)
 ecyl(hc,"Hinge_Pin", 0, HZ-0.15, 0, 0.10,0.80,'y', cut=True)
-# Screw holes
 ecyl(hc,"Screw_L", -0.35, HZ-0.15, 0, 0.16,0.60,'y', cut=True)
 ecyl(hc,"Screw_R", 0.35, HZ-0.15, 0, 0.16,0.60,'y', cut=True)
 # Cooling vents
@@ -228,23 +251,18 @@ bc_, bo = new_comp("Barrel")
 ecyl(bc_,"Outer", 0,0,bz_start, BRO,BL, 'z', chrome)
 ecyl(bc_,"Bore", 0,0,bz_start, BRI,BL+0.4, 'z', cut=True)
 ecyl(bc_,"Muzzle_Ring", 0,0,bz_start+BL, BRO+0.08,0.20, 'z', dark_metal)
-# Muzzle LED pocket
 ecyl(bc_,"LED_Pocket", 0,0,bz_start+BL+0.5, 0.26,0.40, 'z', cut=True)
-# Front sight
 ebox(bc_,"Front_Sight", -0.1, BRO+0.05, bz_start+BL-0.5, 0.20,0.30,0.12, dark_metal)
 
 # ── Plunger ──────────────────────────────────────────────────────────────
 pc_, po = new_comp("Plunger")
-pz = 0.6  # plunger Z position inside housing
 ecyl(pc_,"Shaft", 0,0,pz, 0.15,1.6, 'z', chrome)
 ecyl(pc_,"Head", 0,0,pz+0.3, PR,PL, 'z', dark_metal)
-# Follower plate (cam pushes this)
 ebox(pc_,"Follower", 0.6,-0.15,pz+0.2, 0.35,0.35,0.30, dark_metal)
 ecyl(pc_,"Roller", 0.92,0,pz+0.35, 0.12,0.20, 'y', chrome)
-# Bumper
 ecyl(pc_,"Bumper", 0,0,pz-0.6, 0.20,0.12, 'z', black_plas)
 
-# ── Spring (visual coils) ────────────────────────────────────────────────
+# ── Spring (separate component, visual coils) ────────────────────────────
 spc_, spo = new_comp("Spring")
 spz = pz - 0.8
 for i in range(7):
@@ -253,229 +271,252 @@ ecyl(spc_,"Guide_Rod", 0,0, spz-0.9, 0.08,2.4, 'z', chrome)
 
 # ── Drop Cam ─────────────────────────────────────────────────────────────
 camc_, camo = new_comp("Cam_Drop")
-cx = HX/2 - 0.1; cz = pz + 0.35
-# Eccentric cam body (offset from shaft center)
-ecyl(camc_,"Body", cx+ECC,0,cz, CRH,CH, 'y', dark_metal)
-# Shaft boss (centered)
-ecyl(camc_,"Shaft_Boss", cx,0,cz, 0.12,CH+0.1, 'y', chrome)
-# Counterweight
-ebox(camc_,"Weight", cx-ECC-0.2,-0.1,cz-0.27, 0.25,0.20,0.55, dark_metal)
-# Release notch — cut a wedge from the cam
-# A box cut that removes material on the low-radius side
-notch_x = cx + CRH*0.7  # position along cam radius
-ebox(camc_,"Release_Notch", notch_x,-CH/2-0.1,cz-CRH*0.4, CRH*1.2,CH+0.2,CRH*0.8, cut=True)
-# Second cut for drop-edge profile
-ebox(camc_,"Drop_Edge", cx+0.3,-CH/2-0.1,cz+0.1, CRH*0.4,CH+0.2,CRH*0.5, cut=True)
+# Eccentric cam body
+ecyl(camc_,"Body", cam_cx+ECC,0,cam_cz, CRH,CH, 'y', dark_metal)
+ecyl(camc_,"Shaft_Boss", cam_cx,0,cam_cz, 0.12,CH+0.1, 'y', chrome)
+ebox(camc_,"Weight", cam_cx-ECC-0.2,-0.1,cam_cz-0.27, 0.25,0.20,0.55, dark_metal)
+# Notch cuts for drop‑off
+notch_x = cam_cx + CRH*0.7
+ebox(camc_,"Release_Notch", notch_x,-CH/2-0.1, cam_cz-CRH*0.4, CRH*1.2,CH+0.2,CRH*0.8, cut=True)
+ebox(camc_,"Drop_Edge", cam_cx+0.3,-CH/2-0.1, cam_cz+0.1, CRH*0.4,CH+0.2,CRH*0.5, cut=True)
 
 # ── Motor ────────────────────────────────────────────────────────────────
 mtc_, mto = new_comp("Motor_N20")
 my = -HY/2 - N20_BH/2 - 0.1
-ebox(mtc_,"Body", cx-N20_BL/2, my-N20_BH/2, cz-N20_BW/2, N20_BL,N20_BH,N20_BW, dark_metal)
-ebox(mtc_,"Gearbox", cx-N20_GL/2, my-N20_GH/2, cz+N20_BW/2, N20_GL,N20_GH,N20_GW, dark_grey)
-ecyl(mtc_,"Shaft", cx,my, cz+N20_BW/2+N20_GW/2, 0.06,0.6, 'y', chrome)
-# Motor bracket
-ebox(hc,"Motor_Bracket", cx-0.9, -HY/2-0.15, cz-1.0, 1.8,0.15,2.0, dark_metal)
-# Shaft pass-through hole
-ecyl(hc,"Shaft_Hole", cx, cz, -HY/2, 0.12, HY+0.2, 'y', cut=True)
+ebox(mtc_,"Body", cam_cx-N20_BL/2, my-N20_BH/2, cam_cz-N20_BW/2, N20_BL,N20_BH,N20_BW, dark_metal)
+ebox(mtc_,"Gearbox", cam_cx-N20_GL/2, my-N20_GH/2, cam_cz+N20_BW/2, N20_GL,N20_GH,N20_GW, dark_grey)
+ecyl(mtc_,"Shaft", cam_cx,my, cam_cz+N20_BW/2+N20_GW/2, N_SHAFT_R,N_SHAFT_L, 'y', chrome)
+# Motor bracket attached to housing
+ebox(hc,"Motor_Bracket", cam_cx-0.9, -HY/2-0.15, cam_cz-1.0, 1.8,0.15,2.0, dark_metal)
+# Shaft hole through housing wall
+ecyl(hc,"Shaft_Hole", cam_cx, cam_cz, -HY/2, 0.12, HY+0.2, 'y', cut=True)
 # Wire channel
-ecyl(hc,"Wire_Chan", cx-0.5, cz-0.6, -HY/2, 0.10,0.40, 'y', cut=True)
-# Wire visual
-ecyl(mtc_,"Wire_Red", cx-0.3, my-N20_BH/2, cz-N20_BW/2-0.2, 0.04,1.8, 'y', red_col)
-ecyl(mtc_,"Wire_Blk", cx+0.3, my-N20_BH/2, cz-N20_BW/2-0.2, 0.04,1.8, 'y', black_plas)
+ecyl(hc,"Wire_Chan", cam_cx-0.5, cam_cz-0.6, -HY/2, 0.10,0.40, 'y', cut=True)
+# Motor wires (cosmetic)
+ecyl(mtc_,"Wire_Red", cam_cx-0.3, my-N20_BH/2, cam_cz-N20_BW/2-0.2, 0.04,1.8, 'y', red_col)
+ecyl(mtc_,"Wire_Blk", cam_cx+0.3, my-N20_BH/2, cam_cz-N20_BW/2-0.2, 0.04,1.8, 'y', black_plas)
 
 # ── Magazine ─────────────────────────────────────────────────────────────
 mgc_, mgo = new_comp("Magazine")
 mgx=0; mgy=HY/2; mgz=bz_start-0.2
-# Outer clear tube
 ecyl(mgc_,"Tube", mgx,mgy,mgz, MAG_RO,MAG_H, 'y', glass_clr)
-# Inner bore
 ecyl(mgc_,"Bore", mgx,mgy,mgz, MAG_RI,MAG_H+0.4, 'y', cut=True)
-# Feed funnel
 ecyl(mgc_,"Funnel", mgx,HY/2, bz_start+0.1, MAG_RI+0.2,0.40, 'y', dark_metal)
-# Ammo window (transparent slot)
 ebox(mgc_,"Ammo_Window", mgx-0.3, mgy+1.0, mgz-0.3, 0.6,0.02,1.2, glass_clr)
 
-# ── Balls ────────────────────────────────────────────────────────────────
-# Magazine balls (5)
-ball_occs = []
+# ── Balls (5 in magazine + 1 chambered) ──────────────────────────────────
+mag_balls = []          # list of occurrences, bottom first
 for i in range(5):
-    bcomp,bocc = new_comp(f"Ball_{i+1}")
-    sphere(bcomp,"Ball", 0,0,0, BR, chrome)
+    bcomp,bocc = new_comp(f"Ball_Mag_{i+1}")
+    sphere(bcomp,f"Ball_{i+1}", 0,0,0, BR, chrome)
+    # Position in magazine: stack upwards from the funnel
     bocc.transform = adsk.core.Matrix3D.create()
     bocc.transform.translation = adsk.core.Vector3D.create(
         mgx, mgy + 0.5 + i*0.9, mgz)
-    ball_occs.append(bocc)
-# Chambered ball
+    mag_balls.append(bocc)
+
+# Chambered ball (separate occurrence)
 ch_comp, ch_occ = new_comp("Ball_Chambered")
 sphere(ch_comp,"Ball", 0,0,0, BR, chrome)
 ch_occ.transform = adsk.core.Matrix3D.create()
 ch_occ.transform.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15)
 
-# Store initial ball positions for feed animation
-ball_positions = []
-for i,bocc in enumerate(ball_occs):
-    t = bocc.transform
-    ball_positions.append((
-        t.translation.x, t.translation.y, t.translation.z))
-
-# ── Ejection port ────────────────────────────────────────────────────────
-# Simulate a cut in the top-rear of the barrel area
+# ── Ejection port (cosmetic) ─────────────────────────────────────────────
 ebox(hc,"Eject_Port", 0.25,0, HZ/2+0.3, 0.30,0.08,0.25, dark_grey)
 
-# ── Muzzle flash (cosmetic LED, initially hidden) ────────────────────────
+# ── Muzzle flash (hidden) ────────────────────────────────────────────────
 flc_, flo = new_comp("Muzzle_Flash")
-ecyl(flc_,"Flash", 0,0, bz_start+BL+0.15, 0.25,0.60, 'z', red_col)
+ecyl(flc_,"Flash", 0,0, bz_start+BL+0.15, 0.25,0.60, 'z', amber_led)
 flo.isVisible = False
 
+# ── Ammo counter label (just print to console, we'll also use a message)
 print("BUILD_DONE")
 
 # ══════════════════════════════════════════════════════════════════════════
 # JOINTS
 # ══════════════════════════════════════════════════════════════════════════
-# Cam revolute about Y
-revolute_joint("Cam_Drive", camo, ho, cx, 0, cz, "y")
-# Plunger slider along Z
+revolute_joint("Cam_Drive", camo, ho, cam_cx, 0, cam_cz, "y")
 slider_joint("Plunger_Slide", po, ho, 0, 0, pz, "z")
-
 adsk.doEvents()
 print("JOINTS_DONE")
 
 # ══════════════════════════════════════════════════════════════════════════
-# SIMULATION
+# SIMULATION PARAMETERS
 # ══════════════════════════════════════════════════════════════════════════
 cj = root.asBuiltJoints.itemByName("Cam_Drive")
 sj = root.asBuiltJoints.itemByName("Plunger_Slide")
-
 if not cj or not sj:
-    print("ERROR: Joints not found")
+    print("ERROR: Joints missing")
 else:
-    cmo = cj.jointMotion
-    smo = sj.jointMotion
-    STROKE = 1.0  # plunger retraction distance (cm)
-    RELEASE = 200 * math.pi / 180  # cam release angle
+    cam_motion = cj.jointMotion
+    slider_motion = sj.jointMotion
+    STROKE = 1.0                     # max plunger retraction (cm)
+    RELEASE_ANGLE = 200 * math.pi/180
 
     def cam_lift(angle):
         a = angle % (2*math.pi)
-        if a < RELEASE:
-            return (a / RELEASE) * STROKE
+        if a < RELEASE_ANGLE:
+            return (a / RELEASE_ANGLE) * STROKE
         else:
-            t = (a - RELEASE) / (2*math.pi - RELEASE)
+            t = (a - RELEASE_ANGLE) / (2*math.pi - RELEASE_ANGLE)
             t = min(t, 1.0)
-            # Ease-out snap forward
-            return STROKE * max(0, 1.0 - 1.2*t*t)
+            # Ease-out snap forward (quadratic)
+            return STROKE * max(0.0, 1.0 - 1.3 * t * t)
 
-    CYCLES = 6
+    # Initial ammo
+    ammo_remaining = len(mag_balls) + 1   # +1 for chambered
+    print(f"AMMO: {ammo_remaining}")
+
+    CYCLES = min(ammo_remaining, 6)
     STEPS = 48
-    DELAY = 0.025
-
-    print(f"SIM_START: {CYCLES} cycles")
+    DELAY = 0.02
 
     for cycle in range(CYCLES):
+        # Before firing, ensure chambered ball is visible and in position
+        ch_occ.transform.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15)
+        _app.activeViewport.refresh()
+
         for step in range(STEPS):
             frac = step / STEPS
             angle = frac * 2.0 * math.pi
-            cmo.rotationValue = angle
+            cam_motion.rotationValue = angle
             lift = cam_lift(angle)
-            smo.slideValue = -lift
+            slider_motion.slideValue = -lift
 
-            # Muzzle flash at firing moment (when lift drops fast)
+            # Muzzle flash
             if lift < 0.05:
                 flo.isVisible = True
             else:
                 flo.isVisible = False
 
-            # Chamber ball: push forward when plunger pushes
+            # Move chambered ball forward with plunger
             if lift < 0.4:
                 bdist = min((0.4 - lift) * 18, 12.0)
-                t = ch_occ.transform
-                t.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15 + bdist)
-                ch_occ.transform = t
+                ch_occ.transform.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15 + bdist)
             else:
-                t = ch_occ.transform
-                t.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15)
-                ch_occ.transform = t
+                ch_occ.transform.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15)
 
-            # Spring visual: compress coils
-            # Use the spo (Spring occurrence) transform to visually compress
-            if lift > 0.1:
-                compress = lift * 0.25
-                st = spo.transform
-                st.translation = adsk.core.Vector3D.create(0, 0, -compress)
-                spo.transform = st
+            # Spring compression: move spring component backward
+            compress = lift * 0.35      # visual compression scale
+            spo.transform.translation = adsk.core.Vector3D.create(0, 0, -compress)
 
             _app.activeViewport.refresh()
             _time.sleep(DELAY)
 
-        # After shot: drop next ball from magazine
-        if cycle < CYCLES - 1 and len(ball_occs) > 0:
-            # Move lowest magazine ball to chamber position
-            bocc = ball_occs[-1]  # bottom ball
-            bt = bocc.transform
-            # Move it into chamber
-            bt.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15)
-            bocc.transform = bt
-            ball_occs.pop()
+        # End of shot: ball is gone (we will hide it or move it out of scene)
+        ch_occ.transform.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 15.0)  # far away
+        flo.isVisible = False
 
-        print(f"  Shot {cycle+1}/{CYCLES}")
+        # Reduce ammo count
+        ammo_remaining -= 1
+        print(f"Shot {cycle+1} – Ammo left: {ammo_remaining}")
 
-    # Reset
-    cmo.rotationValue = 0.0
-    smo.slideValue = 0.0
-    flo.isVisible = False
-    st = spo.transform; st.translation = adsk.core.Vector3D.create(0,0,0); spo.transform = st
+        # Feed next ball: shift magazine balls down by one position
+        if mag_balls:
+            # Remove the bottom ball (make it invisible and move away)
+            bottom_ball = mag_balls[0]
+            bottom_ball.transform.translation = adsk.core.Vector3D.create(100,100,100)  # hide
+            bottom_ball.isLightBulb = True   # just to keep reference
+            mag_balls.pop(0)
+
+            # Shift remaining balls down to fill the gap
+            for i, ball_occ in enumerate(mag_balls):
+                new_y = mgy + 0.5 + i * 0.9
+                ball_occ.transform.translation = adsk.core.Vector3D.create(mgx, new_y, mgz)
+
+            # If there are balls left, move the new bottom ball into chamber
+            if mag_balls:
+                new_chamber = mag_balls[0]
+                new_chamber.transform.translation = adsk.core.Vector3D.create(0, 0, HZ/2 + 0.15)
+                # Update chambered occurrence reference for next cycle
+                ch_occ = new_chamber   # swap references
+                # Actually we need to make ch_occ point to this ball for animation
+                # We'll just set ch_occ = new_chamber and use it
+                # Since ch_occ is the variable we use, we assign it
+                ch_occ = new_chamber
+                mag_balls.pop(0)  # remove from list so it's the chambered one
+            else:
+                # No more balls
+                ch_occ = None
+
+        # If no chambered ball left, break
+        if ch_occ is None and not mag_balls:
+            print("OUT OF AMMO")
+            break
+
+        _time.sleep(0.3)
+
+    # Reset everything
+    cam_motion.rotationValue = 0.0
+    slider_motion.slideValue = 0.0
+    spo.transform.translation = adsk.core.Vector3D.create(0,0,0)
     _app.activeViewport.refresh()
     print("FIRING_DONE")
 
 # ══════════════════════════════════════════════════════════════════════════
-# ASSEMBLY / DISASSEMBLY (explode and return)
+# ASSEMBLY / DISASSEMBLY
 # ══════════════════════════════════════════════════════════════════════════
 print("ASSEMBLY_START")
-parts = [bo, po, camo, mgo, mto, ch_occ, spo]
-saved = []
-for p in parts:
-    saved.append(p.transform.copy())
+# Gather all major moving parts (except housing)
+parts = [bo, po, camo, mgo, mto]
+if ch_occ: parts.append(ch_occ)
+parts.append(spo)
+saved_trans = [p.transform.copy() for p in parts]
 
-# Explode
+# Explode outward
 for i, p in enumerate(parts):
     t = p.transform.copy()
     v = adsk.core.Vector3D.create(i*0.8, i*0.5, i*1.2)
-    t.translation = adsk.core.Point3D.create(
+    t.translation = adsk.core.Vector3D.create(
         t.translation.x + v.x,
         t.translation.y + v.y,
-        t.translation.z + v.z).asVector()
+        t.translation.z + v.z)
     p.transform = t
 _app.activeViewport.refresh()
 _time.sleep(2)
 
-# Return
+# Reassemble
 for i, p in enumerate(parts):
-    p.transform = saved[i]
+    p.transform = saved_trans[i]
 _app.activeViewport.refresh()
 _time.sleep(1)
 print("ASSEMBLY_DONE")
 
-# Report
+# Final report
+print("EXPORT_START")
+step_path = r"C:\one\Optimus_Prime\output\ball_launcher.step"
+try:
+    exportMgr = design.exportManager
+    stepOptions = exportMgr.createSTEPExportOptions(step_path, root)
+    res_export = exportMgr.execute(stepOptions)
+    if res_export:
+        print(f"EXPORTED STEP to {step_path}")
+    else:
+        print("STEP EXPORT FAILED")
+except Exception as e:
+    print(f"STEP EXPORT EXCEPTION: {e}")
+
 bc = sum(1 for c in comps_list for b in c.bRepBodies)
 print(f"RESULT:{json.dumps({
     'status':'success','components':len(comps_list),'bodies':bc,
-    'joints':'Cam_Drive + Plunger_Slide','cycles':CYCLES,
-    'features':'barrel+muzzle+flash+magazine+spring+cam+notch+ammo+vent+sight+hinge'
+    'features':'full firing cycle, ammo counter, spring compress, ball feed, assembly/disassembly',
+    'export_path': step_path
 })}")
 """
 
 def main():
     print("=" * 60)
-    print("Ball Launcher DC — Dynamic Simulation (Advanced)")
+    print("Ball Launcher DC – Advanced Dynamic Simulation")
     print("=" * 60)
 
     send_request({
         "jsonrpc": "2.0", "id": _next_id(), "method": "initialize",
         "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                   "clientInfo": {"name": "ball_launcher", "version": "1.0"}}
+                   "clientInfo": {"name": "advanced_launcher", "version": "2.0"}}
     })
     send_request({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
-    print("[MCP] Sending build + simulation script...\n")
+    print("[MCP] Sending advanced simulation script...\n")
     res = call_tool("fusion_mcp_execute", {
         "featureType": "script",
         "object": {"script": FUSION_SCRIPT}
@@ -494,7 +535,7 @@ def main():
             for k,v in d.items(): print(f"  {k}: {v}")
         except: pass
 
-    print("\nCheck Fusion 360 for the animated launcher.")
+    print("\nCheck Fusion 360 for the fully animated launcher.")
 
 if __name__ == "__main__":
     main()
