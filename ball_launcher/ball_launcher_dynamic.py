@@ -471,6 +471,46 @@ _app.activeViewport.refresh()
 _time.sleep(1)
 print("ASSEMBLY_DONE")
 
+# ── Save Screenshots ──────────────────────────────────────────────────────
+print("SCREENSHOTS_START")
+artifact_dir = r"C:\Users\PREM KUMAR\.gemini\antigravity\brain\41ed2feb-a7f0-40de-807d-773ea665695e"
+def capture_img(filename, view_orientation, hide_housing=False, hide_mag=False):
+    try:
+        if ho: ho.isLightBulbOn = not hide_housing
+        if mgo: mgo.isLightBulbOn = not hide_mag
+        
+        view = _app.activeViewport
+        camera = view.camera
+        camera.cameraType = adsk.core.CameraTypes.OrthographicCameraType
+        camera.viewOrientation = view_orientation
+        camera.isFitView = True
+        view.camera = camera
+        view.refresh()
+        
+        path = os.path.join(artifact_dir, filename)
+        view.saveAsImageFile(path, 1200, 900)
+        print(f"Captured: {path}")
+    except Exception as e:
+        print(f"Capture {filename} error: {e}")
+
+# 1. External Isometric View
+capture_img("assembly_iso.png", adsk.core.ViewOrientations.IsoTopRightViewOrientation)
+
+# 2. Internal View (Hide Housing, show plunger, spring, cam, motor)
+capture_img("internal_iso.png", adsk.core.ViewOrientations.IsoTopRightViewOrientation, hide_housing=True)
+
+# 3. Side View (Verify joints and vertical alignment)
+capture_img("internal_side.png", adsk.core.ViewOrientations.RightViewOrientation, hide_housing=True)
+
+# 4. Top View (Verify magazine alignment)
+capture_img("internal_top.png", adsk.core.ViewOrientations.TopViewOrientation, hide_housing=True)
+
+# Restore visibilities
+if ho: ho.isLightBulbOn = True
+if mgo: mgo.isLightBulbOn = True
+_app.activeViewport.refresh()
+print("SCREENSHOTS_DONE")
+
 # Final report
 print("EXPORT_START")
 step_path = r"C:\one\Optimus_Prime\output\ball_launcher.step"
