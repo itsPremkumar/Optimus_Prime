@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Ball Launcher DC – ULTIMATE FINAL VERSION (MCP)
 ================================================
@@ -606,9 +606,7 @@ else:
                 set_translation(ch_occ, 0, 0, chamber_z)
 
             compress_ratio = lift / STROKE
-            sp_mat = adsk.core.Matrix3D.create()
-            sp_mat.setToScale(1.0, 1.0, 1.0 - compress_ratio * 0.4)
-            sp_occ.transform = sp_mat
+            set_translation(sp_occ, 0, 0, -compress_ratio * 0.4 * 1.8)
 
             _app.activeViewport.refresh()
             _time.sleep(DELAY)
@@ -635,9 +633,7 @@ else:
 
     cam_motion.rotationValue = 0.0
     slider_motion.slideValue = 0.0
-    sp_mat = adsk.core.Matrix3D.create()
-    sp_mat.setToScale(1.0, 1.0, 1.0)
-    sp_occ.transform = sp_mat
+    set_translation(sp_occ, 0, 0, 0.0)
     _app.activeViewport.refresh()
     print("FIRING_DONE")
 
