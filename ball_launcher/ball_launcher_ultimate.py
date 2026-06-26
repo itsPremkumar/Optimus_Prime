@@ -57,8 +57,7 @@ _ui  = _app.userInterface
 
 _new_doc = _app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
 try:
-    _app.preferences.generalPreferences.defaultModelingOrientation = \\
-        adsk.core.DefaultModelingOrientations.ZUpModelingOrientation
+    _app.preferences.generalPreferences.defaultModelingOrientation = adsk.core.DefaultModelingOrientations.ZUpModelingOrientation
 except: pass
 
 design = adsk.fusion.Design.cast(_app.activeProduct)
