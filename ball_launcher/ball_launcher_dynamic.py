@@ -341,6 +341,11 @@ print("JOINTS_DONE")
 # ══════════════════════════════════════════════════════════════════════════
 # SIMULATION PARAMETERS
 # ══════════════════════════════════════════════════════════════════════════
+# Save initial transforms of ALL occurrences to restore later
+initial_transforms = {}
+for occ in root.occurrences:
+    initial_transforms[occ.name] = (occ.transform.copy(), occ.isLightBulbOn)
+
 cj = root.asBuiltJoints.itemByName("Cam_Drive")
 sj = root.asBuiltJoints.itemByName("Plunger_Slide")
 if not cj or not sj:
@@ -455,18 +460,12 @@ else:
 # ASSEMBLY / DISASSEMBLY
 # ══════════════════════════════════════════════════════════════════════════
 print("ASSEMBLY_START")
-# Gather all major moving parts (except housing)
-parts = [bo, po, camo, mgo, mto]
-if ch_occ: parts.append(ch_occ)
-parts.append(spo)
-saved_trans = [p.transform.copy() for p in parts]
-
-# Skipped explode animation to ensure STEP export is completely assembled
-_time.sleep(1)
-
-# Reassemble
-for i, p in enumerate(parts):
-    p.transform = saved_trans[i]
+# Restore all initial transforms and visibilities to clean up simulation state
+for occ in root.occurrences:
+    if occ.name in initial_transforms:
+        trans, vis = initial_transforms[occ.name]
+        occ.transform = trans
+        occ.isLightBulbOn = vis
 _app.activeViewport.refresh()
 _time.sleep(1)
 print("ASSEMBLY_DONE")
