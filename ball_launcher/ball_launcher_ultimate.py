@@ -879,7 +879,12 @@ def main():
         print("ERROR: No response from Fusion 360.")
         sys.exit(1)
 
-    msg = res.get("result", {}).get("message", str(res))
+    try:
+        content_text = res.get("result", {}).get("content", [{}])[0].get("text", "")
+        mcp_res = json.loads(content_text)
+        msg = mcp_res.get("message", "")
+    except Exception as e:
+        msg = res.get("result", {}).get("message", str(res))
     print(f"\n[MCP] Response:\n{msg}")
 
     if "RESULT:" in msg:
@@ -892,17 +897,17 @@ def main():
                 if k == 'fixes_applied':
                     print(f"\n  {k}:")
                     for fix in v:
-                        print(f"    ✓ {fix}")
+                        print(f"    [FIX] {fix}")
                 elif k == 'bom':
                     print(f"\n  Bill of Materials:")
                     for item in v:
-                        print(f"    • {item['qty']}x {item['item']} ({item['material']}) – {item['notes']}")
+                        print(f"    - {item['qty']}x {item['item']} ({item['material']}) - {item['notes']}")
                 elif k == 'print_checks':
                     print(f"\n  3D Print Verification:")
                     for check in v:
                         status = check.split(':')[0]
                         detail = ':'.join(check.split(':')[1:]).strip()
-                        icon = "✓" if status == "PASS" else "⚠" if status == "WARN" else "ℹ"
+                        icon = "[PASS]" if status == "PASS" else "[WARN]" if status == "WARN" else "[INFO]"
                         print(f"    {icon} {detail}")
                 else:
                     print(f"  {k}: {v}")
