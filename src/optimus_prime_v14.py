@@ -3946,15 +3946,47 @@ def run(context):
                                 pass
                             time.sleep(delay)
 
+                    def apply_margin():
+                        """Move camera back by 15% of eye-target distance to add composition margin."""
+                        try:
+                            eye = camera.eye
+                            target = camera.target
+                            vec = target.vectorTo(eye)
+                            if vec.length > 0:
+                                vec.normalize()
+                                distance = eye.distanceTo(target)
+                                offset = vec.copy()
+                                offset.scaleBy(0.15 * distance)
+                                eye.translateBy(offset)
+                                camera.eye = eye
+                                viewport.camera = camera
+                                adsk.doEvents()
+                        except:
+                            pass
+
                     def save_view(name, orientation=None):
                         if orientation is not None:
                             camera.viewOrientation = orientation
                             camera.isFitView = True
                             viewport.camera = camera
                         settle()
+                        apply_margin()
+                        settle()
                         path = os.path.join(SCREENSHOT_DIR, f"{prefix}_{name}.png")
                         viewport.saveAsImageFile(path, width, height)
                         Logger.log(f"Screenshot: {path}")
+
+                    def toggle_shells(visible):
+                        """Toggle visibility of outer shell components to expose inner joints and attachments."""
+                        shells = ["armor", "shield", "plate", "chest", "cab", "grille", "bumper", "fender", "cover", "shell"]
+                        try:
+                            root = self._design.rootComponent
+                            for occ in root.allOccurrences:
+                                name = (occ.component.name or "").lower()
+                                if any(s in name for s in shells):
+                                    occ.isLightBulbOn = visible
+                        except Exception as e:
+                            Logger.log(f"toggle_shells failed: {e}", "WARN")
 
                     views = [
                         ("Front", adsk.core.ViewOrientations.FrontViewOrientation),
@@ -3971,6 +4003,26 @@ def run(context):
                             save_view(name, orientation)
                         except Exception as e:
                             Logger.log(f"  view {name} failed: {e}", "WARN")
+
+                    # Capture internal verification views (with outer shells hidden)
+                    try:
+                        toggle_shells(visible=False)
+                        settle()
+                        internal_views = [
+                            ("Internal_Front", adsk.core.ViewOrientations.FrontViewOrientation),
+                            ("Internal_Right", adsk.core.ViewOrientations.RightViewOrientation),
+                            ("Internal_IsoTopRight", adsk.core.ViewOrientations.IsoTopRightViewOrientation),
+                        ]
+                        for name, orientation in internal_views:
+                            try:
+                                save_view(name, orientation)
+                            except Exception as e:
+                                Logger.log(f"  internal view {name} failed: {e}", "WARN")
+                    except Exception as e:
+                        Logger.log(f"  internal capture sequence failed: {e}", "WARN")
+                    finally:
+                        toggle_shells(visible=True)
+                        settle()
 
                     if VISUAL_AUDIT:
                         # BUGFIX-V13-5: wrap turntable sweep so a single bad
