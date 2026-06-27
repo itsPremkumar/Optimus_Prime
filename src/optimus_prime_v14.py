@@ -957,59 +957,64 @@ def run(context):
                         if not body.isValid:
                             continue
                         
-                        b_name = body.name or ""
-                        base_name = b_name.split(" (")[0]
-                        
-                        # Check the body's existing appearance before overriding
-                        current_ap = None
                         try:
-                            current_ap = body.appearance
-                        except:
-                            pass
-
-                        # If the body already has a specific detail appearance, keep it!
-                        detail_appearances = {rubber_blk, glass_clr, op_blue_glass, yellow_met, gold_met,
-                                              dark_metal, dark_grey, black_plastic, chrome}
-                        detail_appearances = {ap for ap in detail_appearances if ap is not None}
-
-                        is_detail_appearance = False
-                        if current_ap:
-                            for det_ap in detail_appearances:
-                                if current_ap.name == det_ap.name:
-                                    is_detail_appearance = True
-                                    break
-
-                        # Fallback check using original name matching if names did survive
-                        is_wheel_part = any(k in b_name for k in ["VisTire", "VisRim", "VisGB", "VisMot", "VisShaft", "VisHub", "AxlePin"])
-                        is_shoulder_joint = any(k in b_name for k in ["Shoulder_Frame", "Sh_Pad_Edge", "StkTip_", "Stk_A_", "ShShield_", "ShHinge_", "Mirror_"])
-                        is_finger_phalanx = any(k in b_name for k in ["_PP", "_MP", "_DP", "_TP", "_TD"])
-                        is_detail_part = any(k in b_name for k in [
-                            "Grille", "Win_", "Bumper", "Stack", "Antenna", "Visor",
-                            "Horn_", "Fender", "Headlamp", "KneeCap", "Armor",
-                            "Beam", "Rib", "Stop", "Lock", "Hinge"
-                        ])
-                        is_name_excluded = is_wheel_part or is_shoulder_joint or is_finger_phalanx or is_detail_part
-
-                        b_ap = None
-                        if is_detail_appearance or is_name_excluded:
-                            # Keep its existing appearance if it is a detail appearance,
-                            # else use the stored color from creation if available
-                            b_ap = current_ap or body_colors.get(b_name) or body_colors.get(base_name) or ap
-                            excluded_count += 1
-                        else:
-                            # Use dominant color if available, else fallback to current/stored
-                            b_ap = ap or current_ap or body_colors.get(b_name) or body_colors.get(base_name)
-
-                        if b_ap:
+                            b_name = body.name or ""
+                            base_name = b_name.split(" (")[0]
+                            
+                            # Check the body's existing appearance before overriding
+                            current_ap = None
                             try:
-                                body.appearance = b_ap
-                                applied_count += 1
-                            except Exception:
+                                current_ap = body.appearance
+                            except:
+                                pass
+
+                            # If the body already has a specific detail appearance, keep it!
+                            detail_appearances = {rubber_blk, glass_clr, op_blue_glass, yellow_met, gold_met, chrome}
+                            detail_appearances = {ap for ap in detail_appearances if ap is not None}
+
+                            is_detail_appearance = False
+                            if current_ap:
+                                try:
+                                    for det_ap in detail_appearances:
+                                        if current_ap.name == det_ap.name:
+                                            is_detail_appearance = True
+                                            break
+                                except:
+                                    pass
+
+                            # Fallback check using original name matching if names did survive
+                            is_wheel_part = any(k in b_name for k in ["VisTire", "VisRim", "VisGB", "VisMot", "VisShaft", "VisHub", "AxlePin"])
+                            is_shoulder_joint = any(k in b_name for k in ["Shoulder_Frame", "Sh_Pad_Edge", "StkTip_", "Stk_A_", "ShShield_", "ShHinge_", "Mirror_"])
+                            is_finger_phalanx = any(k in b_name for k in ["_PP", "_MP", "_DP", "_TP", "_TD"])
+                            is_detail_part = any(k in b_name for k in [
+                                "Grille", "Win_", "Bumper", "Stack", "Antenna", "Visor",
+                                "Horn_", "Fender", "Headlamp", "KneeCap", "Armor",
+                                "Beam", "Rib", "Stop", "Lock", "Hinge"
+                            ])
+                            is_name_excluded = is_wheel_part or is_shoulder_joint or is_finger_phalanx or is_detail_part
+
+                            b_ap = None
+                            if is_detail_appearance or is_name_excluded:
+                                # Keep its existing appearance if it is a detail appearance,
+                                # else use the stored color from creation if available
+                                b_ap = current_ap or body_colors.get(b_name) or body_colors.get(base_name) or ap
+                                excluded_count += 1
+                            else:
+                                # Use dominant color if available, else fallback to current/stored
+                                b_ap = ap or current_ap or body_colors.get(b_name) or body_colors.get(base_name)
+
+                            if b_ap:
+                                try:
+                                    body.appearance = b_ap
+                                    applied_count += 1
+                                except Exception:
+                                    skipped_count += 1
+                            else:
                                 skipped_count += 1
-                        else:
-                            skipped_count += 1
-                except Exception:
-                    pass
+                        except Exception as inner_e:
+                            Logger.log(f"Inner body loop failed for {comp.name}: {inner_e}")
+                except Exception as e:
+                    Logger.log(f"Component loop failed for {comp.name}: {e}")
 
             Logger.log(f"Final colors: {applied_count} applied, {skipped_count} skipped, {excluded_count} kept individual color.")
 
