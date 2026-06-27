@@ -913,7 +913,7 @@ def run(context):
             if chrome:
                 for cn in ["OP_Hand_L", "OP_Hand_R",
                             "OP_SteerPod_L", "OP_SteerPod_R",
-                            "OP_Ion_Blaster", "OP_Shields"]:
+                            "OP_Ion_Blaster"]:
                     comp_color_map[cn] = chrome
             if op_blue or glass_clr:
                 head_ap = op_blue or glass_clr
@@ -960,30 +960,45 @@ def run(context):
                         b_name = body.name or ""
                         base_name = b_name.split(" (")[0]
                         
-                        # Check if this body should keep its original individual color
+                        # Check the body's existing appearance before overriding
+                        current_ap = None
+                        try:
+                            current_ap = body.appearance
+                        except:
+                            pass
+
+                        # If the body already has a specific detail appearance, keep it!
+                        detail_appearances = {rubber_blk, glass_clr, op_blue_glass, yellow_met, gold_met,
+                                              dark_metal, dark_grey, black_plastic, chrome}
+                        detail_appearances = {ap for ap in detail_appearances if ap is not None}
+
+                        is_detail_appearance = False
+                        if current_ap:
+                            for det_ap in detail_appearances:
+                                if current_ap.name == det_ap.name:
+                                    is_detail_appearance = True
+                                    break
+
+                        # Fallback check using original name matching if names did survive
                         is_wheel_part = any(k in b_name for k in ["VisTire", "VisRim", "VisGB", "VisMot", "VisShaft", "VisHub", "AxlePin"])
-                        is_shoulder_joint = any(k in b_name for k in ["Shoulder_Frame", "Sh_Pad_Edge", "StkTip_", "Stk_A_"])
+                        is_shoulder_joint = any(k in b_name for k in ["Shoulder_Frame", "Sh_Pad_Edge", "StkTip_", "Stk_A_", "ShShield_", "ShHinge_", "Mirror_"])
                         is_finger_phalanx = any(k in b_name for k in ["_PP", "_MP", "_DP", "_TP", "_TD"])
                         is_detail_part = any(k in b_name for k in [
                             "Grille", "Win_", "Bumper", "Stack", "Antenna", "Visor",
                             "Horn_", "Fender", "Headlamp", "KneeCap", "Armor",
                             "Beam", "Rib", "Stop", "Lock", "Hinge"
                         ])
-                        
-                        is_excluded = is_wheel_part or is_shoulder_joint or is_finger_phalanx or is_detail_part
-                        
+                        is_name_excluded = is_wheel_part or is_shoulder_joint or is_finger_phalanx or is_detail_part
+
                         b_ap = None
-                        if is_excluded:
-                            # Try to use the body's original individual color
-                            b_ap = body_colors.get(b_name) or body_colors.get(base_name)
-                            if b_ap:
-                                excluded_count += 1
-                            else:
-                                # Fallback: if no stored color, still use dominant
-                                b_ap = ap
+                        if is_detail_appearance or is_name_excluded:
+                            # Keep its existing appearance if it is a detail appearance,
+                            # else use the stored color from creation if available
+                            b_ap = current_ap or body_colors.get(b_name) or body_colors.get(base_name) or ap
+                            excluded_count += 1
                         else:
-                            # Use dominant color if available, else fallback to stored
-                            b_ap = ap or body_colors.get(b_name) or body_colors.get(base_name)
+                            # Use dominant color if available, else fallback to current/stored
+                            b_ap = ap or current_ap or body_colors.get(b_name) or body_colors.get(base_name)
 
                         if b_ap:
                             try:
@@ -1160,11 +1175,21 @@ def run(context):
                 return False
             tool_name = tool_body.name
             target_names = []
+            no_cut_keywords = {
+                "VisTire", "VisRim", "VisGB", "VisMot", "VisShaft", "VisHub", "AxlePin",
+                "Shoulder_Frame", "Sh_Pad_Edge", "StkTip_", "Stk_A_",
+                "_PP", "_MP", "_DP", "_TP", "_TD",
+                "Grille", "Win_", "Bumper", "Stack", "Antenna", "Visor",
+                "Horn_", "Fender", "Headlamp", "KneeCap", "Armor",
+                "Beam", "Rib", "Stop", "Lock", "Hinge",
+                "ShShield_", "ShHinge_", "Mirror_", "HipShield_"
+            }
             for b in list(comp.bRepBodies):
                 if b == tool_body:
                     continue
-                if b.name and any(t in b.name for t in SKIP_TAGS):
-                    continue
+                if b.name:
+                    if any(t in b.name for t in SKIP_TAGS) or any(k in b.name for k in no_cut_keywords):
+                        continue
                 target_names.append(b.name)
 
             success = False
@@ -1183,6 +1208,8 @@ def run(context):
                     ci.isKeepToolBodies = True
                     comp.features.combineFeatures.add(ci)
                     success = True
+                    if t_body and t_body.isValid:
+                        t_body.name = t_name
                 except Exception as e:
                     Logger.log(f"cut_cavity: cut on {t_name} failed: {e}", "DEBUG")
 
@@ -1222,6 +1249,26 @@ def run(context):
                     Logger.log(f"split_halves: {body.name} did not split "
                                f"(before={before_count} after={after_count})", "WARN")
                     return False
+                
+                # BUGFIX: Rename split halves to ensure they are named _left and _right based on CoM
+                after_bodies = list(comp.bRepBodies)
+                candidates = []
+                for ab in after_bodies:
+                    if not ab.isValid:
+                        continue
+                    ab_name = ab.name or ""
+                    if name in ab_name or ab_name.startswith("Body"):
+                        candidates.append(ab)
+                for cb in candidates:
+                    try:
+                        cog = cb.physicalProperties.centerOfMass
+                        pos = cog.y if axis == "y" else cog.z if axis == "z" else cog.x
+                        if pos < offset:
+                            cb.name = f"{name}_left"
+                        else:
+                            cb.name = f"{name}_right"
+                    except:
+                        pass
                 return True
             except Exception as e:
                 Logger.log(f"split_halves failed: {e}", "WARN")
@@ -1276,6 +1323,8 @@ def run(context):
                     ci.operation = adsk.fusion.CombineOperation.JoinFeatureOperation
                     ci.isKeepToolBodies = False
                     comp.features.combineFeatures.add(ci)
+                    if t_body and t_body.isValid:
+                        t_body.name = t_name
                 except Exception as e:
                     Logger.log(f"merge_fastener failed for {f_name}: {e}", "DEBUG")
 
@@ -1633,6 +1682,10 @@ def run(context):
             PRINT_NOTES.append((jig.name, "print base flat, pins upright", True))
             BOM.add("Tooling", f"Assembly jig for {comp_name}", 1, "printed")
             ASSEMBLY_STEPS.append(f"Print jig for {comp_name}; use during shell alignment")
+            # Hide jig in the main design view to avoid floating empty plates at the bottom
+            occ = occs.get(f"JIG_{comp_name}")
+            if occ:
+                occ.isLightBulbOn = False
             return jig
 
         # ── BUGFIX-V13-3: FST-1 with empty-registry guard ─────────────────
@@ -2887,6 +2940,11 @@ def run(context):
             box(ua, "UA_Link",         ax,         0, ELBOW_Z+3.0,      3.2, 3.4, 5.2, op_red)
             box(ua, "UA_Skin",         ax+m*1.80,  0, ELBOW_Z+3.0,      0.52, 3.4, 5.2, chrome)
 
+            # Move shields directly into upper arm so they rotate/move with the arm
+            box(ua, f"ShShield_{side}", ax+m*3.4,  0, SHOULDER_CTR+1.5, 1.1, 4.6, 5.2, chrome)
+            box(ua, f"ShHinge_{side}",  ax+m*2.7,  0, SHOULDER_CTR+1.5, 0.5, 1.9, 1.9, dark_grey)
+            box(ua, f"Mirror_{side}",   ax+m*3.9, -2.9, SHOULDER_CTR+2.0, 1.5, 0.2, 0.9, dark_grey)
+
             mg996r(ua, f"{side}_ShY",    ax, 0, SHOULDER_CTR+1.5, "z")
             dual_bearing(ua, f"{side}_ShY_Dual", ax, 0, SHOULDER_CTR+2.0,
                          "z", 1.00, 0.55, span=2.80, fit_type="press")
@@ -3039,14 +3097,11 @@ def run(context):
         # ─────────────────────────────────────────────────────────────────
         # 8 SHIELDS / PANELS
         # ─────────────────────────────────────────────────────────────────
-        shields = new_component("OP_Shields")
-        for side, sx in [("L", -(SHOULDER_X+3.4)), ("R", SHOULDER_X+3.4)]:
-            m2 = -1 if side == "L" else 1
-            box(shields, f"ShShield_{side}", sx,        0, SHOULDER_CTR+1.5, 1.1, 4.6, 5.2, chrome)
-            box(shields, f"ShHinge_{side}",  sx-m2*0.7, 0, SHOULDER_CTR+1.5, 0.5, 1.9, 1.9, dark_grey)
-            box(shields, f"Mirror_{side}",   sx+m2*0.5,-2.9, SHOULDER_CTR+2.0, 1.5, 0.2, 0.9, dark_grey)
+        # Note: Left/Right shoulder shields moved directly to OP_UpperArm for kinematic coupling
         for side2, hx in [("L", -(HIP_X+3.1)), ("R", HIP_X+3.1)]:
-            box(shields, f"HipShield_{side2}", hx, 0, PELVIS_CTR+0.5, 1.1, 4.4, 4.0, op_blue)
+            # Create a component for hip shields to group them
+            hs_comp = new_component(f"OP_HipShield_{side2}")
+            box(hs_comp, f"HipShield_{side2}", hx, 0, PELVIS_CTR+0.5, 1.1, 4.4, 4.0, op_blue)
 
 
         # ─────────────────────────────────────────────────────────────────
@@ -3076,7 +3131,6 @@ def run(context):
         p  = occs.get("OP_Pelvis")
         h  = occs.get("OP_Head")
         b  = occs.get("OP_Backpack")
-        sh = occs.get("OP_Shields")
 
         if p:
             p.isGrounded = True
@@ -3084,7 +3138,10 @@ def run(context):
         ball_joint("Waist_Cluster",  t,  p,  0, 0, WAIST_CTR-2.5)
         ball_joint("Neck_Cluster",   h,  t,  0, 0, NECK_JOINT_Z)
         rigid_joint("Backpack_Mount", b,  t)
-        rigid_joint("Shields_Mount", sh,  t)
+        for side2 in ["L", "R"]:
+            hs_occ = occs.get(f"OP_HipShield_{side2}")
+            if hs_occ and p:
+                rigid_joint(f"HipShield_{side2}_Mount", hs_occ, p)
 
         for side in ["L", "R"]:
             sx = -HIP_X      if side == "L" else  HIP_X
@@ -3985,6 +4042,13 @@ def run(context):
                                 name = (occ.component.name or "").lower()
                                 if any(s in name for s in shells):
                                     occ.isLightBulbOn = visible
+                            # BUGFIX: Also toggle body-level visibility for shells merged into structural occurrences (like UpperArm)
+                            for comp in self._comps:
+                                for body in comp.bRepBodies:
+                                    if body.isValid and body.name:
+                                        b_name = body.name.lower()
+                                        if any(s in b_name for s in shells):
+                                            body.isLightBulbOn = visible
                         except Exception as e:
                             Logger.log(f"toggle_shells failed: {e}", "WARN")
 
@@ -4072,7 +4136,7 @@ def run(context):
                         return "spherical"
                     if any(k in name for k in ["Knee", "Elbow", "MCP", "Fold"]):
                         return "revolute"
-                    if any(k in name for k in ["Mount", "Steer", "Shields", "Backpack"]):
+                    if any(k in name for k in ["Mount", "Steer", "Backpack"]):
                         return "fixed"
                     return "revolute"
 
@@ -4083,7 +4147,7 @@ def run(context):
 
                 link_mass = {
                     "OP_Head": 280,       "OP_Torso": 950,    "OP_Pelvis": 480,
-                    "OP_Backpack": 150,   "OP_SteerPod_L": 60, "OP_SteerPod_R": 60, "OP_Shields": 80,
+                    "OP_Backpack": 150,   "OP_SteerPod_L": 60, "OP_SteerPod_R": 60,
                     "OP_Thigh_L": 250,    "OP_Thigh_R": 250,
                     "OP_Shin_L": 220,     "OP_Shin_R": 220,
                     "OP_Foot_L": 180,     "OP_Foot_R": 180,

@@ -247,7 +247,7 @@ def run_simulation(script_content):
     return call_tool("fusion_mcp_execute", {
         "featureType": "script",
         "object": {"script": script_content}
-    }, timeout=3600)  # up to 1 hour
+    }, timeout=7200)  # up to 2 hours
 
 def _get_log_text(res):
     if not isinstance(res, dict):
@@ -277,7 +277,7 @@ if __name__ == "__main__":
     _rpc_id = 0
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--module", default="ALL", choices=["ALL","rom","head","wave","breathing","walk","run","combat","transform","truck","robot","stability","servo"])
+    parser.add_argument("--module", default="ALL", choices=["ALL","rom","head","wave","breathing","walk","run","combat","transform","truck","robot","stability","servo","visual"])
     parser.add_argument("--capture", action="store_true")
     parser.add_argument("--export-stl", action="store_true", help="Export STL files")
     parser.add_argument("--export-step", action="store_true", help="Export STEP files")
