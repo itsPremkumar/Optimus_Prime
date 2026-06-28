@@ -161,7 +161,7 @@ IMU_L,  IMU_W,  IMU_H  = 2.10, 1.60, 0.12
 LIPO_L, LIPO_W, LIPO_H = 7.00, 3.20, 1.80
 XT60_W, XT60_H_SLOT     = 1.60, 1.30
 LED_R_5MM=0.260; LED_R_RING=0.600
-FUSE_HOLDER_L=2.00; FUSE_HOLDER_W=0.80; FUSE_HOLDER_H=0.75
+# (FUSE_HOLDER_* defined above in Power system section)
 
 # ── Servo specs (v12 maintained) ─────────────────────────────────────────────
 SERVO_SPECS = {
@@ -969,8 +969,8 @@ def run(context):
                                 pass
 
                             # If the body already has a specific detail appearance, keep it!
-                            detail_appearances = {rubber_blk, glass_clr, op_blue_glass, yellow_met, gold_met, chrome}
-                            detail_appearances = {ap for ap in detail_appearances if ap is not None}
+                            detail_appearances = [rubber_blk, glass_clr, op_blue_glass, yellow_met, gold_met, chrome]
+                            detail_appearances = [ap for ap in detail_appearances if ap is not None]
 
                             is_detail_appearance = False
                             if current_ap:
@@ -1078,7 +1078,7 @@ def run(context):
         @trace_execution
         def cone_shape(comp, name, cx, cy, cz, r1, r2, h, axis, ap=None):
             axis = _safe_axis(axis)
-            if r1 < 0 or r2 < 0 or h <= 0:
+            if r1 <= 0 or r2 <= 0 or h <= 0:
                 Logger.log(f"cone({name}): invalid dims r1={r1} r2={r2} h={h} -- skipped", "WARN")
                 return None
             temp  = adsk.fusion.TemporaryBRepManager.get()
@@ -1090,8 +1090,9 @@ def run(context):
             bf.startEdit()
             body  = comp.bRepBodies.add(shape, bf)
             bf.finishEdit()
-            body.name = name
-            set_ap(body, ap)
+            if body:
+                body.name = name
+                set_ap(body, ap)
             return body
 
         @trace_execution
@@ -1361,7 +1362,8 @@ def run(context):
         def m3_boss(comp, tag, cx, cy, cz, axis="z", depth=0.80, screw_len=1.2):
             """PHY-1 — Ø7 mm boss cylinder + Ø4.7 mm heat-set insert pocket."""
             boss = cyl(comp, f"{tag}_Boss", cx, cy, cz, BOSS_R, depth, axis, dark_metal)
-            boss.name = f"{tag}_Boss"
+            if boss:
+                boss.name = f"{tag}_Boss"
             cut_cavity(comp, cyl(comp, f"{tag}_Insert",
                                  cx, cy, cz, INSERT_R, INSERT_H, axis))
             BOM.add("Fastener", "M3 heat-set insert (Voron M3x5)", 1,
