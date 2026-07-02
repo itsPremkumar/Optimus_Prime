@@ -178,7 +178,7 @@ JOINT_LIMITS = {
     "Neck_Cluster":       {"pitch":(-90,45),"yaw":(-20,20),"roll":(-20,20)},
     "L_Hip_Cluster":      {"pitch":(-30,30),"yaw":(-95,95),"roll":(-30,30)},
     "R_Hip_Cluster":      {"pitch":(-30,30),"yaw":(-95,95),"roll":(-30,30)},
-    "L_Knee":{"pitch":(0,135),"yaw":(-15,15)}, "R_Knee":{"pitch":(0,135),"yaw":(-15,15)},
+    "L_Knee":{"pitch":(0,135),"roll":(-15,15)}, "R_Knee":{"pitch":(0,135),"roll":(-15,15)},
     "L_Ankle_Cluster":    {"pitch":(-20,20),"yaw":(-30,95),"roll":(-20,20)},
     "R_Ankle_Cluster":    {"pitch":(-20,20),"yaw":(-30,95),"roll":(-20,20)},
     "L_Shoulder_Cluster": {"pitch":(-175,60),"yaw":(-90,90),"roll":(-90,90)},
@@ -2771,6 +2771,9 @@ def run(context):
         tof_sensor_pocket(head, "ToF_R",  1.8, -2.40, HC-0.3, "y")
 
         mg90s(head, "Neck_Yaw", 0, 0, NECK_JOINT_Z, "z")
+        mg90s(head, "Neck_Roll", 0, 1.6, NECK_JOINT_Z, "y")
+        bearing_fit(head, "Neck_Roll_Brg", 0, 1.6, NECK_JOINT_Z+0.2, "y", 0.80, 0.44, fit_type="press")
+        hard_stop(head, "Neck_Roll_Stop", 0, 1.6, NECK_JOINT_Z, "y", 20)
         grommet_slot(head, "NeckWire", 0, 0.8, HC-0.5, "y", 0.50)
         # V13: CSI ribbon exits the head toward the neck channel
         fpc_ribbon_channel(head, "CSIHeadExit", 0, 0.4, HC-1.2, 3.0, "z")
@@ -2908,9 +2911,12 @@ def run(context):
 
             mg996r(foot, f"{side}_AnkP", sx, 0, ANKLE_CTR+2.2, "x")
             mg996r(foot, f"{side}_AnkR", sx, 0, ANKLE_CTR+0.5, "y")
+            mg90s(foot, f"{side}_AnkY", sx, -1.8, ANKLE_CTR+1.5, "z")
             bearing_fit(foot, f"{side}_AB",  sx, 0, ANKLE_CTR,     "x", 1.00, 0.55, fit_type="press")
             hard_stop(foot, f"{side}_AnkP_Stop", sx, -2.0, ANKLE_CTR+2.2, "x", 20)
             hard_stop(foot, f"{side}_AnkN_Stop", sx,  2.0, ANKLE_CTR+2.2, "x", -20)
+            bearing_fit(foot, f"{side}_AY_Brg", sx, -1.8, ANKLE_CTR+1.8, "z", 0.80, 0.44, fit_type="press")
+            hard_stop(foot, f"{side}_AnkY_Stop", sx, -1.8, ANKLE_CTR+1.5, "z", 30)
             for bx_off in [-1.5, 1.5]:
                 m3_boss(foot, f"{side}_FootBoss_{bx_off:.0f}", sx+bx_off, 0, ANKLE_CTR-0.5)
             align_pin(foot, f"{side}_Ft_A", sx-1.0, 0, ANKLE_CTR-1.3)
@@ -2977,9 +2983,12 @@ def run(context):
             box(fa, "FA_Vent_L",  ax-0.6,  -1.8,  WRIST_Z+3.5, 0.30, 0.22, 3.0, dark_grey)
             box(fa, "FA_Vent_R",  ax+0.6,  -1.8,  WRIST_Z+3.5, 0.30, 0.22, 3.0, dark_grey)
             mg90s(fa, f"{side}_WR",   ax, 0, WRIST_Z+0.8, "x")
+            mg90s(fa, f"{side}_WRoll", ax, 0, WRIST_Z+1.8, "y")
             bearing_fit(fa, f"{side}_WB", ax, 0, WRIST_Z+0.5, "x", 0.80, 0.44, fit_type="press")
             wire_channel(fa, f"{side}_FAW", ax, 0, WRIST_Z+3.5, 0.4, 4.8, "z")
             m3_boss(fa, f"{side}_FAboss", ax, 0, WRIST_Z+4.2)
+            bearing_fit(fa, f"{side}_WRoll_Brg", ax, 0, WRIST_Z+2.0, "y", 0.80, 0.44, fit_type="press")
+            hard_stop(fa, f"{side}_WRoll_Stop", ax, 0, WRIST_Z+1.8, "y", 90)
             grommet_slot(fa, f"{side}_WristWire", ax, 0, WRIST_Z, "y", 0.45)
 
             hand = new_component(f"OP_Hand_{side}")
@@ -3715,8 +3724,8 @@ def run(context):
                         ("R_Hip_Cluster",      25*r_sign, 10*r_sign,  5*r_sign),
                         ("L_Shoulder_Cluster",  8*l_sign, 15*l_sign,  5*l_sign),
                         ("R_Shoulder_Cluster",  8*r_sign, 15*r_sign,  5*r_sign),
-                        ("L_Knee",             60,        4*l_sign,    None),
-                        ("R_Knee",             60,        4*r_sign,    None),
+                        ("L_Knee",             60,        None,        4*l_sign),
+                        ("R_Knee",             60,        None,        4*r_sign),
                         ("L_Ankle_Cluster",    15*l_sign, None,        8*l_sign),
                         ("R_Ankle_Cluster",    15*r_sign, None,        8*r_sign),
                     ], steps=20)
@@ -3736,8 +3745,8 @@ def run(context):
                         ("R_Hip_Cluster",      30*r_sign, 20*r_sign, 10*r_sign),
                         ("L_Shoulder_Cluster", 15*l_sign, 25*l_sign, 10*l_sign),
                         ("R_Shoulder_Cluster", 15*r_sign, 25*r_sign, 10*r_sign),
-                        ("L_Knee",             95,        6*l_sign,   None),
-                        ("R_Knee",             95,        6*r_sign,   None),
+                        ("L_Knee",             95,        None,       6*l_sign),
+                        ("R_Knee",             95,        None,       6*r_sign),
                         ("L_Ankle_Cluster",    25*l_sign, None,       12*l_sign),
                         ("R_Ankle_Cluster",    25*r_sign, None,       12*r_sign),
                     ], steps=14)
