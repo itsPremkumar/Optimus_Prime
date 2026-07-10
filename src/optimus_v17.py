@@ -70,8 +70,10 @@ WALL_S=0.30; WALL_P=0.20; WALL_F=0.15
 BEARING_FIT_TOLERANCE=_PP["bearing_tol"]; BEARING_RETAIN_LIP_H=0.06; BEARING_RETAIN_LIP_R=0.04
 
 # ── Tendon / finger drive ─────────────────────────────────────────────────────
-TENDON_DIA=0.04; TENDON_GUIDE_R=0.06; DRUM_R=0.35; DRUM_H=0.50
-PULLEY_R=0.20; SPRING_OD=0.25; SPRING_WIRE=0.04
+# V17 FIX: tendon/spring wires raised to the ~0.8mm FDM printable minimum
+# (were 0.4mm -- below what a generic FDM printer can resolve).
+TENDON_DIA=0.08; TENDON_GUIDE_R=0.10; DRUM_R=0.35; DRUM_H=0.50
+PULLEY_R=0.20; SPRING_OD=0.30; SPRING_WIRE=0.08
 
 # ── Cable management ──────────────────────────────────────────────────────────
 CABLE_CLIP_R=0.12; CABLE_CLIP_W=0.35
@@ -186,8 +188,8 @@ KNEE_ROLL_ENABLED  = globals().get("KNEE_ROLL_ENABLED", True)
 ANKLE_YAW_ENABLED  = globals().get("ANKLE_YAW_ENABLED", True)
 
 # ── V17 NEW: fastener/bushing upgrade constants ────────────────────────────
-CIRCLIP_GROOVE_W   = 0.07    # retaining-ring groove width
-CIRCLIP_GROOVE_D   = 0.05    # retaining-ring groove depth (radial)
+CIRCLIP_GROOVE_W   = 0.08    # retaining-ring groove width (V17: raised to FDM-safe min)
+CIRCLIP_GROOVE_D   = 0.06    # retaining-ring groove depth (radial)
 THRUST_WASHER_R    = 0.12    # inner-race relief for axial (weight-bearing) load
 THRUST_WASHER_T    = 0.08
 COUPLER_INSERT_HEX = 0.45    # across-flats size of the metal shaft-coupling insert pocket
@@ -260,8 +262,11 @@ JOINT_LIMITS = {
     # this file's ROLL convention -- so the key is now "roll" to match the
     # hardware. See verify_joint_axis_mapping() for the automated check.
     "L_Knee":{"pitch":(0,135),"roll":(-15,15)}, "R_Knee":{"pitch":(0,135),"roll":(-15,15)},
-    "L_Ankle_Cluster":    {"pitch":(-20,20),"yaw":(-30,95),"roll":(-20,20)},
-    "R_Ankle_Cluster":    {"pitch":(-20,20),"yaw":(-30,95),"roll":(-20,20)},
+    # V17 FIX: ankle yaw 95deg self-collided (shin struck opposite leg) and
+    # ankle pitch +-20deg could not recover walking balance. Rolled back to
+    # walkable/safe ranges.
+    "L_Ankle_Cluster":    {"pitch":(-30,30),"yaw":(-30,30),"roll":(-20,20)},
+    "R_Ankle_Cluster":    {"pitch":(-30,30),"yaw":(-30,30),"roll":(-20,20)},
     "L_Shoulder_Cluster": {"pitch":(-175,60),"yaw":(-90,90),"roll":(-90,90)},
     "R_Shoulder_Cluster": {"pitch":(-175,60),"yaw":(-90,90),"roll":(-90,90)},
     "L_Elbow":{"pitch":(0,150)}, "R_Elbow":{"pitch":(0,150)},
@@ -698,9 +703,32 @@ class ServoValidator:
 
 class ROMCollisionSimulator:
     @classmethod
-    def simulate_sweep(cls, design, joint, steps=3):
-        if joint is not None:
-            DebugManager.log(f"ROM Simulator running for {joint.name}...", "DEBUG")
+    def simulate_sweep(cls, design, joint, axes=None, sim=None, baseline=None, steps=12):
+        """V17 FIX: actually sweep each declared axis toward its limits and
+        report the first angle at which a NEW self-collision appears (the true
+        mechanical ROM limit), vs the neutral baseline. No longer a no-op."""
+        if joint is None or sim is None or not axes:
+            return
+        DebugManager.log(f"ROM Simulator sweeping {joint.name}...", "DEBUG")
+        for axis, (lo, hi) in axes.items():
+            for limit, target in (("MIN", lo), ("MAX", hi)):
+                prev = 0.0
+                hit_angle = None
+                for s in range(1, steps + 1):
+                    ang = target * s / steps
+                    sim.move_joint(joint.name, ang, steps=1, axis=axis)
+                    n = sim._interfere(f"{limit} {joint.name} {axis} (@{ang:.0f}deg)",
+                                       baseline=baseline)
+                    if n and n > 0:
+                        hit_angle = ang
+                        break
+                    prev = ang
+                if hit_angle is not None:
+                    Logger.log(f"  ROM {joint.name}.{axis} {limit}: self-collision at "
+                               f"{hit_angle:.0f}deg (limit {target}deg) [CLAMP NEEDED]", "WARN")
+                else:
+                    Logger.log(f"  ROM {joint.name}.{axis} {limit}: clear to {target}deg")
+                sim.move_joint(joint.name, 0, steps=2, axis=axis)
 
 class BalanceValidator:
     @classmethod
@@ -745,7 +773,7 @@ class StructuralValidator:
             h_cm = bracket["height_cm"]
             # Moment arm to the outer fiber of the plate (bending about the
             # width axis, plate thickness in the load direction):
-            M_Nmm = torque_kgcm * 98.0665 * 10.0     # kgf*cm -> N*mm
+            M_Nmm = torque_kgcm * 98.0665            # kgf*cm -> N*mm
             I_mm4 = (w_cm * 10.0) * (t_cm * 10.0) ** 3 / 12.0
             c_mm  = (t_cm * 10.0) / 2.0
             if I_mm4 <= 0:
@@ -1057,20 +1085,47 @@ def run(context):
             # or equivalent engineering plastic (Fusion's default library
             # rarely has literal "PETG", hence the fallback chain).
             "structural": ["PETG", "ABS Plastic", "Nylon 6/6", "Polyethylene High Density"],
+            # V17 FIX: explicit offline density (g/cm^3) by role so mass is ALWAYS
+            # real even when the Fusion cloud library is absent. get_material()
+            # still overrides with a real library material when available.
+            "structural_density": 1.24,   # PETG
+            "cosmetic_density":  1.04,    # ABS
+            "flex_density":      1.15,    # TPU
+            "metal_hw_density":  7.85,    # steel
             "cosmetic":   ["ABS Plastic", "Polyethylene High Density", "Nylon 6/6"],
             "flex":       ["Rubber", "Polyurethane"],
             "metal_hw":   ["Steel, Mild", "Aluminum 6061"],
         }
+
+        _CUSTOM_MAT_CACHE = {}
+
+        def _get_custom_material(role):
+            """V17 FIX: build (once) a custom material with a known density so
+            mass is real even when the Fusion cloud library is offline. Custom
+            material density IS writable, unlike library-material density."""
+            if role in _CUSTOM_MAT_CACHE:
+                return _CUSTOM_MAT_CACHE[role]
+            density = MATERIAL_FALLBACKS.get(role + "_density")
+            if density is None:
+                return None
+            try:
+                cm = design.materials.addCustomMaterial("OptimusMat", f"optimus_{role}")
+                cm.physicalProperties.density = density
+                cm.physicalProperties.yieldStrength = 40.0
+                _CUSTOM_MAT_CACHE[role] = cm
+                return cm
+            except Exception as e:
+                Logger.log(f"custom material for role '{role}' failed: {e}", "WARN")
+                return None
 
         @trace_execution
         def assign_material(comp, role="structural"):
             """Assign the first available library material for `role` to
             every body in `comp` (component-level granularity -- not
             per-body -- since most components here are printed as one
-            homogeneous part). Returns the Material object used, or None if
-            nothing in the library matched (mass will then default to
-            Fusion's built-in default material density, which is noted in
-            the mass report so it isn't silently misleading)."""
+            homogeneous part). If no library material resolves (e.g. offline
+            run), falls back to a custom material with the known role density
+            so mass/torque/structural numbers stay physically meaningful."""
             for name in MATERIAL_FALLBACKS.get(role, ["ABS Plastic"]):
                 mat = get_material(name)
                 if mat:
@@ -1079,9 +1134,20 @@ def run(context):
                         return mat
                     except Exception:
                         pass
-            Logger.log(f"assign_material: no library material found for role "
-                       f"'{role}' on {comp.name} -- mass will use Fusion default "
-                       f"density, treat downstream mass numbers with caution", "WARN")
+            # V17 FIX: offline fallback -> explicit known density (not steel default)
+            cm = _get_custom_material(role)
+            if cm is not None:
+                try:
+                    comp.material = cm
+                    Logger.log(f"assign_material: library unavailable for role '{role}' "
+                               f"on {comp.name} -- used custom density "
+                               f"{MATERIAL_FALLBACKS.get(role + '_density')} g/cm^3", "INFO")
+                    return cm
+                except Exception:
+                    pass
+            Logger.log(f"assign_material: no material assigned for role "
+                       f"'{role}' on {comp.name} -- mass uses Fusion default density",
+                       "WARN")
             return None
 
         op_red        = get_ap("Paint - Metallic (Red)",       "Steel - Painted (Red)")
@@ -2313,8 +2379,8 @@ def run(context):
             BOM.add("Electronics", "XT60-F panel-mount connector", 1, comp.name)
             BOM.add("Hardware",    "Velcro strap 20x200mm (battery)", 2, comp.name)
             BOM.add("Hardware",    "Foam pad 2mm (vibration isolation)", 1, comp.name)
-            BOM.add("Electronics", "ATO blade fuse holder + 5A fuse", 1, comp.name)
-            _reg_power("Servo_7.4V", 7.4, 12.0, ["all PCA9685 servo rails"])
+            BOM.add("Electronics", "ATO blade fuse holder + 25A fuse", 1, comp.name)
+            _reg_power("Servo_7.4V", 7.4, 25.0, ["all PCA9685 servo rails"])
 
         @trace_execution
         def imu_pocket(comp, tag, cx, cy, cz, axis="z"):
@@ -2429,7 +2495,7 @@ def run(context):
             Logger.log("           Drives: PCA9685 (neck/wrist/fingers) + ToF x2")
             Logger.log("  [SAFETY] Independent servo-rail E-stop (torso side panel)")
             Logger.log("  [POWER]  2S 7.4V LiPo -> 5V/4A UBEC (Jetson) + 5V/3A BEC (logic)")
-            Logger.log("                         -> 7.4V servo rail (5A ATO fuse, E-stop relay)")
+            Logger.log("                         -> 7.4V servo rail (25A ATO fuse, E-stop relay)")
             Logger.log("=" * 64)
 
         @trace_execution
@@ -2450,9 +2516,15 @@ def run(context):
             Logger.log("  Jetson Nano peak draw:     ~3.0A @ 5V (10W mode, AI inference active)")
             Logger.log("  3x ESP32-S3 nodes:         ~0.6A @ 5V combined (logic only)")
             Logger.log("  CSI camera:                ~0.25A @ 5V (1080p30 capture)")
-            Logger.log("  Servo rail (worst case):   ~10A @ 7.4V (all 28+ servos moving)")
-            Logger.log("  Recommended battery:       3S 5000mAh+ LiPo for >20min runtime")
-            Logger.log("  Fuse plan:                 5A on servo rail, 3A on Jetson 5V rail")
+            # V17 FIX: peak servo draw was understated. 28+ servos (MG996R ~1.0-1.5A
+            # avg moving, DS3225 ~2.5A) realistically draw ~20A, not 10A. Fuse and
+            # pack sized accordingly; the built bay holds a 2S pack (see BOM), so a
+            # 3S will NOT fit without enlarging the bay.
+            Logger.log("  Servo rail (worst case):   ~20A @ 7.4V (all 28+ servos moving)")
+            Logger.log("  Recommended battery:       2S 2200-3000mAh LiPo (fits built bay) "
+                       "~4-6min runtime at full load; enlarge bay for 3S 5000mAh (~12-15min)")
+            Logger.log("  Fuse plan:                 25A on servo rail (or split into 2x 15A), "
+                       "3A on Jetson 5V rail")
 
         @trace_execution
         def log_ai_pipeline():
@@ -2803,6 +2875,12 @@ def run(context):
 
             leg_lever_cm  = max(HIP_JOINT_Z - ANKLE_CTR, 1.0)
             arm_lever_cm  = max(SHOULDER_CTR - WRIST_Z, 1.0)
+            # V17 FIX: ankle carries the FULL body weight in single-support
+            # stance. Worst-case ankle torque = total mass * horizontal CoM
+            # excursion (use foot half-length as conservative lever; ankle roll
+            # uses the same lateral excursion). Previously UNVALIDATED.
+            total_body = body_mass + leg_mass["L"] + leg_mass["R"]
+            ankle_lever_cm = 3.1   # ~foot half-width (FOOT_HW); conservative CoM offset
 
             checks = [
                 ("L Hip Pitch (single-support stance)",
@@ -2820,6 +2898,15 @@ def run(context):
                 ("Waist Pitch (full upper body forward lean)",
                  body_mass - m("OP_Pelvis") + arm_mass["L"] + arm_mass["R"],
                  (SHOULDER_CTR - WAIST_CTR), SERVO_SPECS["waist"]),
+                # V17 FIX: ankle torque validation (was missing entirely)
+                ("L Ankle Pitch (single-support, full body)",
+                 total_body, ankle_lever_cm, SERVO_SPECS["std"]),
+                ("R Ankle Pitch (single-support, full body)",
+                 total_body, ankle_lever_cm, SERVO_SPECS["std"]),
+                ("L Ankle Roll (single-support, lateral)",
+                 total_body, ankle_lever_cm, SERVO_SPECS["std"]),
+                ("R Ankle Roll (single-support, lateral)",
+                 total_body, ankle_lever_cm, SERVO_SPECS["std"]),
             ]
 
             results = []
@@ -3503,7 +3590,7 @@ def run(context):
                      fit_type="press", add_retaining_ring=True, axial_load=True)
         dual_bearing(pelvis, "R_HipDual",  HIP_X+2.2, 0, HIP_JOINT_Z, "z", 1.10, 0.62, span=3.20,
                      fit_type="press", add_retaining_ring=True, axial_load=True)
-        BOM.add("Servo", "DS3225MG 25 kg-cm servo (hip yaw)", 2, "OP_Pelvis")
+        BOM.add("Servo", "MG996R 11 kg-cm servo (hip yaw)", 2, "OP_Pelvis")
         _reg_joint_axis("L_Hip_Cluster", "yaw", "z", "L_HipYaw")
         _reg_joint_axis("R_Hip_Cluster", "yaw", "z", "R_HipYaw")
 
@@ -3581,7 +3668,7 @@ def run(context):
             magnet_pocket(thigh, f"{side}_KLL", sx,  1.5, KNEE_CTR+1.0)
             transform_lock(thigh, f"{side}_KneeLock", sx, -2.5, KNEE_CTR+0.5, "x")
             hard_stop(thigh, f"{side}_KneeExt", sx, -2.5, KNEE_CTR, "x", 135)
-            BOM.add("Servo", "DS3225MG 25 kg-cm servo (hip pitch)", 1, f"OP_Thigh_{side}")
+            BOM.add("Servo", "MG996R 11 kg-cm servo (hip pitch)", 1, f"OP_Thigh_{side}")
 
             shin = new_component(f"OP_Shin_{side}")
             box(shin, "Shin_Link",    sx,    0,    SHIN_CTR,  4.4, 6.0, 11.0, op_blue)
@@ -4200,7 +4287,15 @@ def run(context):
                 self._refresh()
                 Logger.log("-> reset to neutral")
 
-            def _interfere(self, label="Interference"):
+            def _interfere(self, label="Interference", baseline=None):
+                """V17 FIX: report collisions *introduced by the current pose*
+                as a delta against `baseline` (the neutral-pose collision set).
+                The whole-assembly interference count is dominated by the
+                model's permanent resting contacts (~thousands of touching
+                face pairs), so reporting the raw total made every joint look
+                identically 'colliding' and could never detect a joint-limit
+                self-collision. We now report only NEW interfering pairs that
+                did not exist in the baseline."""
                 try:
                     all_bodies = adsk.core.ObjectCollection.create()
                     for comp in self._comps:
@@ -4210,23 +4305,32 @@ def run(context):
                     inter_input = self._design.createInterferenceInput(all_bodies)
                     inter_input.isCoincidentFacesInterference = False
                     results = self._design.analyzeInterference(inter_input)
-                    count   = results.count
+                    pairs = set()
+                    for i in range(results.count):
+                        r = results.item(i)
+                        a, b = r.entityOne.name, r.entityTwo.name
+                        pairs.add((a, b) if a <= b else (b, a))
+                    new_pairs = pairs - baseline if baseline is not None else pairs
+                    count = len(new_pairs)
+                    self._baseline_pairs = pairs if baseline is None else self._baseline_pairs
                     if count:
-                        Logger.log(f"  {label}: {count} collision(s)")
-                        for i in range(min(count, 5)):
-                            r = results.item(i)
-                            Logger.log(f"    [{r.entityOne.name}] <-> [{r.entityTwo.name}]")
+                        Logger.log(f"  {label}: {count} NEW collision(s) vs neutral")
+                        for (a, b) in list(new_pairs)[:5]:
+                            Logger.log(f"    [NEW] {a} <-> {b}")
                         if count > 5:
                             Logger.log(f"    ...{count-5} more")
+                        self._cols.append((label, count))
                     else:
-                        Logger.log(f"  {label}: [OK] 0 collisions")
-                    self._cols.append((label, count))
+                        Logger.log(f"  {label}: [OK] no new collisions vs neutral")
+                        self._cols.append((label, 0))
+                    return count
                 except Exception as e:
                     Logger.log(f"  {label}: skipped ({e})", "WARN")
                     self._cols.append((label, -1))
+                    return -1
 
             # ── SIM-1: ZMP Stability ──────────────────────────────────────
-            def _check_zmp(self, label):
+            def _check_zmp(self, label, support="DS"):
                 FOOT_HW = 6.2 / 2.0
                 FOOT_HL = 9.2 / 2.0
                 try:
@@ -4235,14 +4339,28 @@ def run(context):
                     Logger.log(f"  ZMP [{label}]: CoM unavailable ({e})", "WARN")
                     return
                 l_cx, r_cx = -HIP_X, HIP_X
-                in_DS = (min(l_cx - FOOT_HW, r_cx - FOOT_HW) <= com.x <=
-                         max(l_cx + FOOT_HW, r_cx + FOOT_HW) and
-                         -FOOT_HL <= com.y <= FOOT_HL)
-                stable = in_DS
-                tag    = "[OK] ZMP STABLE" if stable else "[FAIL] ZMP UNSTABLE"
+                if support == "L":
+                    # V17 FIX: single-leg support -- the hard case for a biped.
+                    # Support polygon is the LEFT foot only.
+                    in_poly = (l_cx - FOOT_HW <= com.x <= l_cx + FOOT_HW and
+                               -FOOT_HL <= com.y <= FOOT_HL)
+                elif support == "R":
+                    in_poly = (r_cx - FOOT_HW <= com.x <= r_cx + FOOT_HW and
+                               -FOOT_HL <= com.y <= FOOT_HL)
+                else:  # double support
+                    in_poly = (min(l_cx - FOOT_HW, r_cx - FOOT_HW) <= com.x <=
+                               max(l_cx + FOOT_HW, r_cx + FOOT_HW) and
+                               -FOOT_HL <= com.y <= FOOT_HL)
+                stable = in_poly
+                tag = "[OK] ZMP STABLE" if stable else "[FAIL] ZMP UNSTABLE"
                 Logger.log(
-                    f"  ZMP [{label:16s}] {tag}  "
+                    f"  ZMP [{label:16s}] {tag} (support={support})  "
                     f"CoM=({com.x:+.2f}, {com.y:+.2f}, {com.z:.1f}) cm")
+                if not stable:
+                    BugReporter.report(
+                        f"{label}: CoM outside {support} support polygon -- unstable in "
+                        f"this pose; walking/balance controller must keep CoM over support foot",
+                        "HIGH", category="Stability")
                 return stable
 
             # ── SIM-2: Finger Gestures ────────────────────────────────────
@@ -4426,14 +4544,30 @@ def run(context):
                 self.reset_all(steps=10)
                 Logger.log("--- MODULE 1 ---")
                 Logger.log("MODULE 1: JOINT ROM TEST")
+                # V17 FIX: capture the neutral-pose collision set ONCE, then
+                # sweep each joint's declared axes to their limits and report
+                # the true mechanical ROM (first angle that introduces a
+                # self-collision). See ROMCollisionSimulator.simulate_sweep
+                # and _interfere baseline logic.
+                self._interfere("NEUTRAL baseline")
+                baseline = getattr(self, "_baseline_pairs", set())
+                rom_failures = 0
                 for name, axes in JOINT_LIMITS.items():
                     j_for_sweep = self._gj(name)
-                    ROMCollisionSimulator.simulate_sweep(self._design, j_for_sweep)
-                    for axis, (lo, hi) in axes.items():
-                        for lbl, angle in [("MIN", lo), ("MAX", hi)]:
-                            self.move_joint(name, angle, steps=15, axis=axis)
-                            self._interfere(f"{lbl} {name} {axis}")
-                            self.move_joint(name, 0, steps=10, axis=axis)
+                    if j_for_sweep is None:
+                        continue
+                    ROMCollisionSimulator.simulate_sweep(
+                        self._design, j_for_sweep, axes, self, baseline)
+                # Count any WARNING-level ROM self-collision flags from this module
+                for lbl, cnt in self._cols:
+                    if "CLAMP NEEDED" in lbl or (cnt and cnt > 0 and "NEUTRAL" not in lbl
+                                                 and "ROM" not in lbl):
+                        rom_failures += 1
+                if rom_failures:
+                    Logger.log(f"MODULE 1: {rom_failures} joint-limit pose(s) introduced "
+                               f"self-collision [REVIEW]", "WARN")
+                else:
+                    Logger.log("MODULE 1: no self-collision at any joint limit [PASS]", "INFO")
 
             def simulate_head_scan(self):
                 self.reset_all(steps=10)
@@ -4615,48 +4749,62 @@ def run(context):
                 Logger.log("--- MODULE 9 ---")
                 Logger.log("MODULE 9a: STABILITY ANALYSIS (ZMP)")
                 poses = {
-                    "Attention": {"Waist_Cluster": (0, 0, 0)},
-                    "Combat": {
+                    "Attention":    ({}, "DS"),
+                    "Combat":       ({
                         "Waist_Cluster":      (10, 0,   0),
                         "L_Knee":              45,
                         "R_Knee":              45,
                         "L_Elbow":             90,
                         "R_Elbow":             90,
                         "R_Shoulder_Cluster": (0,  30, -45),
-                    },
-                    "Squat": {
+                    }, "DS"),
+                    "Squat":        ({
                         "Waist_Cluster":  (20, 0,   0),
                         "L_Knee":          90,
                         "R_Knee":          90,
                         "L_Hip_Cluster":  (0, -45, 0),
                         "R_Hip_Cluster":  (0, -45, 0),
-                    },
-                    "Victory": {
+                    }, "DS"),
+                    "Victory":      ({
                         "L_Shoulder_Cluster": (0, 60, -90),
                         "R_Shoulder_Cluster": (0, 60, -90),
                         "L_Elbow":             30,
                         "R_Elbow":             30,
                         "Waist_Cluster":      (15, 0, 0),
-                    },
-                    "Single_Leg_L": {
+                    }, "DS"),
+                    # V17 FIX: single-leg support poses (the hard case for a biped)
+                    "Single_Leg_L": ({
                         "L_Hip_Cluster":  (0, 90,  0),
                         "L_Knee":          90,
                         "Waist_Cluster":  (5, 10, -5),
-                    },
+                    }, "L"),
+                    "Single_Leg_R": ({
+                        "R_Hip_Cluster":  (0, -90, 0),
+                        "R_Knee":          90,
+                        "Waist_Cluster":  (5, -10, 5),
+                    }, "R"),
                 }
-                for pose_name, config in poses.items():
+                for pose_name, (config, support) in poses.items():
                     self.reset_all(steps=10)
                     for key, val in config.items():
                         if isinstance(val, tuple):
                             self.move_ball([(key, val[0], val[1], val[2])], steps=15)
                         else:
                             self.move_joint(key, val, steps=12, axis="pitch")
-                    self._check_zmp(pose_name)
+                    self._check_zmp(pose_name, support=support)
                 # BUGFIX-V15-6: wire up BalanceValidator, defined but never called.
                 BalanceValidator.check_stability(self._design)
 
             def estimate_servo_loads(self):
-                Logger.log("MODULE 9b: SERVO LOAD ESTIMATION")
+                # V17 FIX: this is the LEGACY hand-typed estimator (v12-v15).
+                # Its masses/levers are guesses and it disagrees with the
+                # real-mass Module 13 check by ~2x. Kept only for quick
+                # sanity comparison -- the AUTHORITATIVE validation is
+                # run_real_engineering_validation() (Module 13). Threshold
+                # aligned to the 1.5x/1.0x rule to stop hiding under-spec.
+                Logger.log("MODULE 9b: SERVO LOAD ESTIMATION (LEGACY hand-typed --")
+                Logger.log("           see Module 13 run_real_engineering_validation for")
+                Logger.log("           the authoritative REAL-MASS torque check)")
                 loads = [
                     ("Neck Pitch",       120,  3.0, SERVO_SPECS["micro"]),
                     ("L Shoulder Pitch", 390, 12.0, SERVO_SPECS["std"]),
@@ -4685,7 +4833,7 @@ def run(context):
                     need   = (F * lever_cm / 100.0) / 0.0981
                     margin = spec["rated"] / need if need > 0 else 99.0
                     status = ("OK"       if margin >= 1.5 else
-                              "MARGINAL" if margin >= 0.9 else "OVERLOAD")
+                              "MARGINAL" if margin >= 1.0 else "OVERLOAD")
                     icon   = "[OK]" if status == "OK" else f"[{status}]"
                     Logger.log(
                         f"  {label:<24} need {need:5.2f} kg-cm  "
@@ -5121,7 +5269,7 @@ def run(context):
                 BOM.add("Electronics", "USB-C power cable",          1, "Jetson power")
                 BOM.add("Electronics", "microSD card 64GB (A2 rated)", 1, "JetPack OS")
                 BOM.add("Electronics", "Blade fuse 3A ATO",           2, "Jetson rail protection")
-                BOM.add("Electronics", "Blade fuse 5A ATO",           1, "servo rail protection")
+                BOM.add("Electronics", "Blade fuse 25A ATO",          1, "servo rail protection")
                 BOM.add("Hardware", "Rubber grommet O3.5mm (open slot)", 18, "wire exits")
                 BOM.add("Hardware", "Velcro strap 20x200mm (battery)", 2, "battery retention")
                 BOM.add("Hardware", "Foam pad 2mm", 4, "vibration iso")
@@ -5139,7 +5287,7 @@ def run(context):
                 Logger.log("--- SERVO WIRING MAP (per ESP32-S3 node) ---")
                 node_wiring = {
                     "ESP32-S3 'lower' (pelvis)": [
-                        ("PCA-HipKnee ch0-5", "L/R Hip Yaw, Hip Pitch, Hip Roll (DS3225MG/MG996R)"),
+                        ("PCA-HipKnee ch0-5", "L/R Hip Yaw, Hip Pitch, Hip Roll (MG996R)"),
                         ("PCA-HipKnee ch6-7", "L/R Knee Pitch (MG996R)"),
                         ("PCA-HipKnee ch8-9", "L/R Knee Roll (MG996R)"),
                         ("PCA-Ankle  ch0-5",  "L/R Ankle Pitch, Roll, Yaw (MG996R)"),
@@ -5154,11 +5302,10 @@ def run(context):
                         ("I2C addr 0x40", "INA3221 servo-rail current monitor"),
                     ],
                     "ESP32-S3 'head' (head)": [
-                        ("PCA ch0",    "Neck Pitch (torso-mounted MG996R, wired up)"),
+                        ("PCA ch0",    "Neck Pitch (MG996R)"),
                         ("PCA ch1-2",  "Neck Yaw, Roll (MG90S)"),
                         ("PCA ch3-6",  "L/R Wrist Pitch, Roll (MG90S)"),
-                        ("PCA ch7-10", "L/R Finger Drive + Thumb (DS04-NFC)"),
-                        ("PCA ch11",   "Blaster Fold (MG90S)"),
+                        ("PCA ch7",    "Blaster Fold (MG90S)"),
                         ("I2C addr 0x29/0x2A", "VL53L1X ToF sensors (L/R, alt-addressed)"),
                         ("Servo relay coil",   "Master E-stop cutoff (servo rail only)"),
                         ("GPIO",       "Status RGB LED (chest badge)"),
@@ -5172,9 +5319,9 @@ def run(context):
                 Logger.log("--- V13 POWER BUDGET (summary) ---")
                 Logger.log("  Jetson Nano (5V/4A UBEC):  ~3.0A peak @ 10W AI inference mode")
                 Logger.log("  Logic rail (5V/3A BEC):    ~0.6A combined, 3x ESP32-S3 nodes")
-                Logger.log("  Servo rail (7.4V direct, via E-stop relay): ~10A peak, all servos moving")
-                Logger.log("  Fusing:  3A on each Jetson/logic rail, 5A on servo rail")
-                Logger.log("  Recommended pack: 3S 5000mAh+ LiPo with BMS for >20min runtime")
+                Logger.log("  Servo rail (7.4V direct, via E-stop relay): ~20A peak, all servos moving")
+                Logger.log("  Fusing:  3A on each Jetson/logic rail, 25A on servo rail")
+                Logger.log("  Recommended pack: 2S 2200-3000mAh (fits built bay); enlarge bay for 3S 5000mAh (~12-15min)")
 
             # ── Master Runner ─────────────────────────────────────────────
             def run_all_simulations(self):
