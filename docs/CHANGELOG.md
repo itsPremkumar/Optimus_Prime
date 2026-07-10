@@ -1,5 +1,51 @@
 # Changelog
 
+## [17.0.0] - 2026-07-09
+
+### Added
+- **Joint design-risk toggles** — `KNEE_ROLL_ENABLED` / `ANKLE_YAW_ENABLED` let you drop the two highest-risk DOFs (parasitic knee-roll torsion; ankle yaw) to rigid joints with a single flag.
+- **Fastener/bushing upgrades** — circlip retaining grooves, axial thrust washers, hex metal shaft-coupling inserts, brass/bronze bushing pockets, tendon tensioner slots.
+- **CSI ribbon slack cradle** (fatigue relief for the most failure-prone connection) and real shock-absorbing foot compliance (replacing the too-thin cosmetic vibration pad).
+
+### Fixed
+- **Waist_Roll** and **Neck_Roll** had a servo + bearing but no hard stop — added mechanical limits.
+- Joint-by-joint reinforcement pass: axial thrust washers on weight-bearing joints.
+
+### Changed
+- Version bump across exports: `Optimus_Prime_G1_v17.f3d/.step`, `robot_v17.urdf`, `BOM_v17_*.csv`, `ASSEMBLY_GUIDE_v17_*.txt`.
+
+## [16.0.0] - 2026-07-07
+
+### Added
+- **Printer calibration profiles** (`generic_fdm` / `calibrated_fdm` / `sla_resin`) replacing a single hard-coded clearance.
+- **Actuator profiles** (hobby servo / smart serial / linear-hybrid) with real torque-margin math per class.
+- **Real physical-material mass** computation feeding real per-joint torque validation (worst-case, not average).
+- **Analytic 2-link planar leg IK** for a real gait; **ESP32 firmware skeleton export**; cantilever-bending bracket safety-factor checks.
+
+## [15.0.0] - 2026-07-06
+
+### Changed
+- Refined v14 electronics/geometry; knee-roll axis rework and joint-limit sync.
+
+## [14.0.0] - 2026-07-05
+
+### Added
+- AI/electronics integration: NVIDIA Jetson Nano carrier, ESP32-S3 control nodes, CSI camera (IMX219), VL53L1X ToF, INA3221 power monitor, sensor-fusion array (ultrasonic + FSR + ADC).
+- Independent servo-rail E-stop, WS2812 status RGB badge, I2C/UART/SPI comm backbone down the spine.
+
+### Fixed
+- **AXIS-1**: knee DOF was keyed `yaw` but the physical servo sits on the Y (roll) axis — re-keyed to `roll` to match hardware, with an automated axis-mapping check.
+
+## [13.0.0] - 2026-06-28
+
+### Added
+- Edge-compute / AI-vision prototype line (Jetson + ESP32-CAM), assembly-guide generator, communication/power map registries.
+
+## [10.0.0 – 12.0.0] - 2026-06
+
+### Added
+- Incremental physical-build hardening: finger tendon drives, cable management, power system (BEC/fuse), fasteners (M3 inserts/nuts/bosses), print jigs, BOM/CAD validators. (See `old_code/` for these reference versions.)
+
 ## [9.0.0] - 2026-06-17
 
 ### Fixed

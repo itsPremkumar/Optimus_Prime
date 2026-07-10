@@ -177,7 +177,7 @@ This means the code tried to move the knee past its limit, and the `_clamp()` me
 
 To get more verbose output:
 
-1. Open `src/optimus_prime_g1_v9.py`
+1. Open `src/optimus_v17.py`
 2. Look for any `quiet=False` parameters and keep them at their defaults
 3. The `Logger` class always writes to both console and log file
 4. To add custom debug logging:

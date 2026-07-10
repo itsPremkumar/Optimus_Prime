@@ -1,6 +1,6 @@
 # Configuration Guide
 
-All configuration is defined at the top of `src/optimus_prime_g1_v9.py` (lines 40–92). Values can be overridden when running via MCP (set by `run_simulation.py`).
+All configuration is defined at the top of `src/optimus_v17.py` (the CONFIGURATION section). Values can be overridden when running via MCP (set by `run_simulation.py`).
 
 ---
 
@@ -133,5 +133,5 @@ SKIP_TAGS  = {"Marker", "Pivot", "MtA", "MtB", "Axle_Pivot", "Horn", "Pin", "_Vi
 | Directory | Contents |
 |-----------|----------|
 | `output/logs/` | Timestamped execution logs (`optimus_fusion_log_*.txt`) |
-| `output/exports/` | STL files, `robot.urdf`, `Optimus_Prime_G1_v9.f3d`, `Optimus_Prime_G1_v9.step` |
+| `output/exports/` | STL files, `robot_v17.urdf`, `Optimus_Prime_G1_v17.f3d`, `Optimus_Prime_G1_v17.step` |
 | `output/screenshots/` | 1920×1080 PNG screenshots |

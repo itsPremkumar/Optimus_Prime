@@ -19,8 +19,8 @@ python src/run_simulation.py --capture
 # Run a specific module with capture
 python src/run_simulation.py --module truck --capture
 
-# Stop a running simulation
-python src/run_simulation.py --stop
+# Stop a running simulation (create the stop-flag file; there is NO --stop flag)
+touch output/stop.flag        # PowerShell: New-Item -Path output\stop.flag -ItemType File -Force
 ```
 
 ### CLI Options
@@ -32,7 +32,9 @@ python src/run_simulation.py --stop
 | `--mcp-url` | `http://127.0.0.1:27182/mcp` | Custom MCP server URL |
 | `--no-launch` | off | Skip auto-launching Fusion 360 |
 | `--keep-docs` | off | Keep existing documents open |
-| `--stop` | off | Stop a running simulation via flag file |
+| `--output-dir` | `../output` | Root directory for logs, screenshots, exports |
+
+> **Stopping a run:** there is no `--stop` flag. Create `output/stop.flag` — the engine polls for it each frame and exits cleanly.
 
 ### Available Modules
 
@@ -85,7 +87,7 @@ python src/run_simulation.py --module walk
 
 ### 4. Simulate All Modules + Export Files
 
-Edit `optimus_prime_g1_v9.py` to set:
+Edit `optimus_v17.py` to set:
 ```python
 EXPORT_STL = True
 EXPORT_STEP = True
@@ -130,14 +132,14 @@ Checks for unbalanced brackets, bare `except:` clauses, and counts function/clas
 
 ## Stopping a Simulation Mid-Run
 
-1. Run the stop command from another terminal:
+1. Create the stop-flag file from another terminal (there is **no** `--stop` CLI flag):
 
    ```bash
-   python src/run_simulation.py --stop
+   touch output/stop.flag
+   # PowerShell: New-Item -Path output\stop.flag -ItemType File -Force
    ```
 
-2. This creates `output/stop.flag`
-3. The simulation checks this file every frame and exits cleanly if found
+2. The simulation checks `output/stop.flag` every frame and exits cleanly if found
 
 ---
 

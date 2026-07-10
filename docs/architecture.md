@@ -2,7 +2,7 @@
 
 ## High-Level Structure
 
-The main script (`src/optimus_prime_g1_v9.py`) follows a linear pipeline with nested building blocks:
+The main script (`src/optimus_v17.py`) follows a linear pipeline with nested building blocks:
 
 ```
 run(context)                  # Entry point (called by Fusion 360)

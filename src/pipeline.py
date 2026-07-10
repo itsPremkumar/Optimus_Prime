@@ -90,7 +90,7 @@ def write_fitness(version_dir: Path, results: list, all_ok: bool):
 
 def run_simulation(config, version_dir):
     print("=" * 60)
-    print("  STEP 1: Run Optimus Prime v14 Simulation")
+    print("  STEP 1: Run Optimus Prime Simulation")
     print("=" * 60)
     args = [
         sys.executable,
@@ -179,12 +179,12 @@ def validate_outputs(config, version_dir):
         results.append(("Screenshots", f"{len(pngs)} files", "PASS" if ok else "FAIL"))
         all_ok &= ok
 
-    boms = list(version_dir.glob("BOM_v14_*.csv")) if version_dir.exists() else []
+    boms = list(version_dir.glob("BOM_v*_*.csv")) if version_dir.exists() else []
     ok = len(boms) > 0
     results.append(("BOM", f"{len(boms)} files", "PASS" if ok else "FAIL"))
     all_ok &= ok
 
-    guides = list(version_dir.glob("ASSEMBLY_GUIDE_v14_*.txt")) if version_dir.exists() else []
+    guides = list(version_dir.glob("ASSEMBLY_GUIDE_v*_*.txt")) if version_dir.exists() else []
     ok = len(guides) > 0
     results.append(("Assembly Guide", f"{len(guides)} files", "PASS" if ok else "FAIL"))
     all_ok &= ok

@@ -27,7 +27,7 @@
   ============================================================
 -->
 
-# Optimus Prime G1 — Full Simulation Engine v9.0
+# Optimus Prime G1 — Full Simulation Engine v17.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://python.org)
@@ -93,7 +93,7 @@ python src/run_simulation.py --module robot --capture
 
 ## What Is This?
 
-This project is a **Python script** (`src/optimus_prime_g1_v9.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
+This project is a **Python script** (`src/optimus_v17.py`) that connects to Autodesk Fusion 360 through its **MCP server** and automatically:
 
 1. **Builds** a complete Optimus Prime G1 3D model with 100+ components
 2. **Applies** materials (red/blue metallic paint, chrome, rubber, glass)
@@ -284,8 +284,10 @@ python src/run_simulation.py --module robot
 # Run truck mode transformation
 python src/run_simulation.py --module truck --capture
 
-# Stop a running simulation
-python src/run_simulation.py --stop
+# Stop a running simulation (create the stop-flag file the engine watches for)
+# Windows (bash):   touch output/stop.flag
+# PowerShell:       New-Item -Path output\stop.flag -ItemType File -Force
+# Note: --stop is NOT a CLI flag; the engine polls output/stop.flag each frame.
 ```
 
 > **Note:** On first run, `run_simulation.py` will auto-detect and launch Fusion 360 if it's not already running. The MCP server typically takes 30–60 seconds to become available.
@@ -299,7 +301,9 @@ python src/run_simulation.py --stop
 | `--mcp-url` | `http://127.0.0.1:27182/mcp` | Custom MCP server URL |
 | `--no-launch` | off | Skip auto-launch of Fusion 360 (use if manually started) |
 | `--keep-docs` | off | Keep existing documents open (default closes all documents first) |
-| `--stop` | off | Stop a running simulation via flag file |
+| `--output-dir` | `../output` | Root directory for logs, screenshots, and exports |
+
+> **Stopping a run:** there is no `--stop` flag. Create the file `output/stop.flag` (e.g. `touch output/stop.flag`) — the engine polls for it every frame and exits cleanly when found.
 
 ### 4. How MCP Communication Works
 
@@ -323,7 +327,7 @@ The system uses **JSON-RPC 2.0** over HTTP to communicate with Fusion 360's buil
 1. `run_simulation.py` connects to the MCP server at `http://127.0.0.1:27182/mcp`
 2. Sends an `initialize` JSON-RPC request to establish a session
 3. Closes any open documents (via embedded prologue script)
-4. Sends the `optimus_prime_g1_v9.py` payload via `fusion_mcp_execute` tool call
+4. Sends the `optimus_v17.py` payload via `fusion_mcp_execute` tool call
 5. Fusion 360 executes the script using its internal Python API (`adsk` modules)
 6. The script builds the model, runs the selected module, and captures output
 7. Results (logs, screenshots, exports) are written to the `output/` directory
@@ -342,15 +346,14 @@ The system uses **JSON-RPC 2.0** over HTTP to communicate with Fusion 360's buil
 ```
 Optimus_Prime/
 ├── src/                           # Source code
-│   ├── optimus_prime_g1_v9.py     # Main Fusion 360 script (model + simulation engine)
-│   ├── optimus_prime_g1_v8.py     # Previous version (v8 — reference only)
-│   ├── optimus_prime_g1_v7.py     # Previous version (v7 — reference only)
+│   ├── optimus_v17.py             # Main Fusion 360 script (model + simulation engine)
+│   ├── optimus_v16.py             # Previous version (v16 — reference only)
+│   ├── optimus_v15.py             # Previous version (v15 — reference only)
 │   ├── run_simulation.py          # CLI controller — sends the script to Fusion 360
+│   ├── pipeline.py                # Build pipeline — sim + capture + validate + manifest
 │   ├── capture_optimus.py         # Multi-angle viewport screenshot capture
-│   ├── analyze_bugs.py            # Post-simulation collision and bug analysis
-│   └── api_test.py                # Dev utility to query Fusion 360 API
-├── archive/                       # Archived legacy versions
-│   └── optimus_prime_simulation_v6.py
+│   └── config.json                # Pipeline configuration
+├── old_code/                      # Archived legacy versions (v6–v14)
 ├── images/                        # Saved viewport screenshots
 ├── videos/                        # Demo videos (transformation, truck mode, robot mode)
 ├── .github/                       # GitHub issue/PR templates
@@ -465,11 +468,14 @@ Grounded: OP_Pelvis
 |------|-------------|
 | `output/logs/optimus_fusion_log_*.txt` | Timestamped execution log with all module results and collision details |
 | `output/exports/robot.urdf` | Minimal URDF skeleton for robotics toolchain import (ROS, Gazebo, etc.) |
-| `output/exports/Optimus_Prime_G1_v9.f3d` | Fusion 360 archive of the full model |
-| `output/exports/Optimus_Prime_G1_v9.step` | STEP assembly file for CAD import (SolidWorks, CATIA, FreeCAD, etc.) |
+| `output/exports/Optimus_Prime_G1_v17.f3d` | Fusion 360 archive of the full model |
+| `output/exports/Optimus_Prime_G1_v17.step` | STEP assembly file for CAD import (SolidWorks, CATIA, FreeCAD, etc.) |
+| `output/exports/robot_v17.urdf` | URDF kinematic skeleton for ROS / Gazebo / MoveIt |
+| `output/BOM_v17_*.csv` | Bill of materials (fasteners, bearings, electronics, filament) |
+| `output/ASSEMBLY_GUIDE_v17_*.txt` | Step-by-step assembly guide |
 | `output/screenshots/*.png` | Viewport screenshots (1920×1080) from `capture_optimus.py` |
 
-> **Export flags** are controlled at the top of `src/optimus_prime_g1_v9.py`:
+> **Export flags** are controlled at the top of `src/optimus_v17.py`:
 > - `EXPORT_STL = True/False` — batch export all printable bodies as `.stl`
 > - `EXPORT_STEP = True/False` — export full assembly as `.step`
 > - `EXPORT_URDF = True/False` — export kinematic skeleton as `.urdf`
@@ -535,7 +541,7 @@ Use `--module` flag: `python run_simulation.py --module walk`
 **Model Context Protocol** (MCP) is a JSON-RPC 2.0 protocol built into Fusion 360 that allows external applications (like this Python script) to communicate with Fusion 360 remotely. The MCP server listens on `http://127.0.0.1:27182/mcp` and can execute scripts, query the model, and control the viewport. See the [Setup & Running](#setup--running) section above for how to enable it.
 
 ### How do I stop a simulation mid-run?
-Run `python run_simulation.py --stop` from another terminal. This creates a flag file that the simulation checks every frame.
+There is no `--stop` CLI flag. From another terminal, create the file `output/stop.flag` (e.g. `touch output/stop.flag`, or in PowerShell `New-Item -Path output\stop.flag -ItemType File -Force`). The simulation engine polls for this file every frame and exits cleanly when it appears.
 
 ### How many servos does the robot use?
 **24 total**: 18× MG996R standard servos (9.4 kg·cm) for hips, knees, ankles, shoulders, elbows + 6× MG90S micro servos (1.8 kg·cm) for neck yaw, wrists, roof hinge, and steering.
@@ -572,8 +578,3 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
     <a href="https://github.com/itsPremkumar/Optimus_Prime">GitHub</a>
   </sub>
 </div>
-
-
-
-
-uv run src/run_simulation.py --module truck --capture
